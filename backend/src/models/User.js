@@ -43,6 +43,12 @@ const userSchema = new mongoose.Schema(
         ref: 'PG',
       },
     ],
+    favorites: [
+   {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PG',
+   },
+   ],
   },
     {
         timestamps: true,

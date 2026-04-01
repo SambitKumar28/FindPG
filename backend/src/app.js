@@ -4,6 +4,9 @@ import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import authRoutes from './routes/authRoutes.js';
 import { notFound, errorHandler } from './middlewares/errorMiddleware.js';
+import pgRoutes from './routes/pgRoutes.js';
+import bookingRoutes from './routes/bookingRoutes.js';
+import favoriteRoutes from './routes/favoriteRoutes.js';
 
 const app = express();
 
@@ -24,6 +27,9 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/pgs', pgRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/favorites', favoriteRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
