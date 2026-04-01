@@ -1,6 +1,6 @@
 import Booking from '../models/Booking.js';
 import PG from '../models/PG.js';
-import asyncHandler from 'express-async-handler';
+import asyncHandler from '../middlewares/asyncHandler.js';
 
 // @desc    Create booking request
 // @route   POST /api/bookings

@@ -1,6 +1,6 @@
 import User from '../models/User.js';
 import PG from '../models/PG.js';
-import asyncHandler from 'express-async-handler';
+import asyncHandler from '../middlewares/asyncHandler.js';
 
 // @desc    Get all favorite PGs
 // @route   GET /api/favorites
