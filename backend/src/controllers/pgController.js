@@ -1,5 +1,6 @@
 import PG from '../models/PG.js';
 import asyncHandler from '../middlewares/asyncHandler.js';
+import cloudinary from '../config/cloudinary.js';
 
 export const createPG = asyncHandler(async (req, res) => {
   const {
@@ -15,6 +16,13 @@ export const createPG = asyncHandler(async (req, res) => {
     amenities,
   } = req.body;
 
+  const imageUrls = req.files
+    ? req.files.map((file) => ({
+        public_id: file.filename,
+        url: file.path,
+      }))
+    : [];
+
   const pg = await PG.create({
     title,
     description,
@@ -26,6 +34,7 @@ export const createPG = asyncHandler(async (req, res) => {
     genderPreference,
     roomType,
     amenities,
+    images: imageUrls,
     owner: req.user._id,
   });
 
@@ -121,6 +130,7 @@ export const getPGById = asyncHandler(async (req, res) => {
   });
 });
 
+
 export const updatePG = asyncHandler(async (req, res) => {
   const pg = await PG.findById(req.params.id);
 
@@ -134,11 +144,32 @@ export const updatePG = asyncHandler(async (req, res) => {
     throw new Error('You are not authorized to update this PG');
   }
 
-  const updatedPG = await PG.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true,
-  });
-res.status(200).json({
+  if (req.files && req.files.length > 0) {
+    for (const image of pg.images) {
+      await cloudinary.uploader.destroy(image.public_id);
+    }
+
+    pg.images = req.files.map((file) => ({
+      public_id: file.filename,
+      url: file.path,
+    }));
+  }
+
+  pg.title = req.body.title || pg.title;
+  pg.description = req.body.description || pg.description;
+  pg.city = req.body.city || pg.city;
+  pg.locality = req.body.locality || pg.locality;
+  pg.address = req.body.address || pg.address;
+  pg.rent = req.body.rent || pg.rent;
+  pg.securityDeposit = req.body.securityDeposit || pg.securityDeposit;
+  pg.genderPreference =
+    req.body.genderPreference || pg.genderPreference;
+  pg.roomType = req.body.roomType || pg.roomType;
+  pg.amenities = req.body.amenities || pg.amenities;
+
+  const updatedPG = await pg.save();
+
+  res.status(200).json({
     success: true,
     message: 'PG updated successfully',
     pg: updatedPG,

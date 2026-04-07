@@ -64,6 +64,17 @@ const pgSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    approvalStatus: {
+  type: String,
+  enum: ['pending', 'approved', 'rejected'],
+  default: 'pending',
+},
+images: [
+  {
+    public_id: String,
+    url: String,
+  },
+],
     },
   {
     timestamps: true,

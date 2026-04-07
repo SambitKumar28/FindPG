@@ -7,6 +7,7 @@ import { notFound, errorHandler } from './middlewares/errorMiddleware.js';
 import pgRoutes from './routes/pgRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import favoriteRoutes from './routes/favoriteRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/pgs', pgRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/favorites', favoriteRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

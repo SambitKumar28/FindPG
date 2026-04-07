@@ -49,6 +49,10 @@ const userSchema = new mongoose.Schema(
     ref: 'PG',
    },
    ],
+   isBlocked: {
+  type: Boolean,
+  default: false,
+},
   },
     {
         timestamps: true,
