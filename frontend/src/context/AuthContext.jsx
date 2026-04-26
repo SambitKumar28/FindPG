@@ -39,12 +39,15 @@ export const AuthProvider = ({ children }) => {
 
       // optional: auto login after register
       // better UX for SaaS
-      await login({
-        email: formData.email,
-        password: formData.password,
-      });
+      const loginRes = await API.post("/auth/login", {
+      email: formData.email,
+      password: formData.password,
+    });
 
-      return { success: true, message: res.data.message };
+    localStorage.setItem("accessToken", loginRes.data.accessToken);
+    setUser(loginRes.data.user);
+
+      return { success: true, message: res.data.message, user: loginRes.data.user };
     } catch (err) {
       return {
         success: false,
@@ -61,7 +64,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("accessToken", res.data.accessToken);
       setUser(res.data.user);
 
-      return { success: true };
+      return { success: true, user: res.data.user };
     } catch (err) {
       return {
         success: false,

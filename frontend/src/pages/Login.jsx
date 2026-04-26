@@ -5,6 +5,7 @@ import { FcGoogle } from "react-icons/fc";
 import { FaFacebookF } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import toast from "react-hot-toast";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -15,34 +16,42 @@ const Login = () => {
   });
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
-    const res = await API.post("/auth/login", formData);
-
-    login(res.data);
-  };
-
+  // Handle Input
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  // Handle Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
       setLoading(true);
-      setError("");
 
-      await login(form);
+      const res = await login(form);
 
-      alert("Login successful");
-      navigate("/owner/dashboard"); // 👉 change to dashboard later
+      if (!res.success) {
+        return toast.error(res.message);
+      }
+
+      //  Success Toast
+      toast.success("Login successful");
+
+      //  Role-based redirect
+      const role = res.user.role;
+
+      if (role === "owner") {
+        navigate("/owner/dashboard");
+      } else {
+        navigate("/dashboard");
+      }
+
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid email or password");
+      toast.error("Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -114,9 +123,9 @@ const Login = () => {
               </div>
 
               {/* Error */}
-              {error && (
+              {/* {error && (
                 <p className="text-red-500 text-sm text-center">{error}</p>
-              )}
+              )} */}
 
               {/* Button */}
               <button

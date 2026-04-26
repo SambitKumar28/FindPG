@@ -15,6 +15,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { FaFacebookF } from "react-icons/fa";
 import { useAuth } from "../hooks/useAuth";
+import toast from "react-hot-toast";
 
 
 const Register = () => {
@@ -31,7 +32,6 @@ const Register = () => {
   });
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const  { register } = useAuth();
   const navigate = useNavigate();
@@ -41,29 +41,43 @@ const Register = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (form.password !== form.confirmPassword) {
-      return setError("Passwords do not match");
+  if (form.password !== form.confirmPassword) {
+    return toast.error("Passwords do not match");
+  }
+
+  try {
+    setLoading(true);
+
+    const res = await register({
+      ...form,
+      role: selectedRole,
+    });
+
+    //  Handle failure
+    if (!res.success) {
+      return toast.error(res.message);
     }
 
-    try {
-      setLoading(true);
-      setError("");
+    //  Success
+    toast.success("Registration successful");
 
-      await register({
-        ...form,
-        role: selectedRole,
-      });
+    //  Role-based redirect (auto-login)
+    const role = res.user.role;
 
-      alert("Registration successful");
-      navigate("/login");
-    } catch (err) {
-      setError(err.response?.data?.message || "Registration failed");
-    } finally {
-      setLoading(false);
+    if (role === "owner") {
+      navigate("/owner/dashboard");
+    } else {
+      navigate("/dashboard");
     }
-  };
+
+  } catch (err) {
+    toast.error("Something went wrong");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-16 relative overflow-hidden">
@@ -196,11 +210,11 @@ const Register = () => {
               </div>
 
               {/* Error */}
-              {error && (
+              {/* {error && (
                 <p className="text-red-500 text-sm text-center">
                   {error}
                 </p>
-              )}
+              )} */}
 
               {/* Submit */}
               <button

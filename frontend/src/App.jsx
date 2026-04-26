@@ -11,6 +11,9 @@ import Contact from "./pages/Contact";
 import { AuthProvider } from "./context/AuthContext";
 import OwnerDashboard from "./pages/owner/OwnerDashboard";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import RoleRoute from "./components/RoleRoute";
+import UserDashboard from "./pages/user/UserDashboard";
+import AddPG from "./pages/owner/AddPG";
 
 const App = () => {
   return (
@@ -26,10 +29,30 @@ const App = () => {
           <Route path="/register" element={<Register />} />
           {/* Owner Routes */}
           <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <UserDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/owner/dashboard"
             element={
               <ProtectedRoute>
-                <OwnerDashboard />
+                <RoleRoute allowedRoles={["owner", "admin"]}>
+                  <OwnerDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/owner/add-pg"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={["owner"]}>
+                  <AddPG />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
