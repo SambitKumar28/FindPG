@@ -1,197 +1,220 @@
-import asyncHandler from '../middlewares/asyncHandler.js';
-import User from '../models/User.js';
-import PG from '../models/PG.js';
-import Booking from '../models/Booking.js';
+import asyncHandler from "../middlewares/asyncHandler.js";
+import User from "../models/User.js";
+import PG from "../models/PG.js";
+import Booking from "../models/Booking.js";
 
-// @desc    Get all users
-// @route   GET /api/admin/users
-// @access  Admin
+// ================= USERS =================
 export const getAllUsers = asyncHandler(async (req, res) => {
-  const users = await User.find().select('-password');
+  const { page = 1, limit = 10 } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const [users, total] = await Promise.all([
+    User.find().select("-password").skip(skip).limit(Number(limit)),
+    User.countDocuments(),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: users.length,
-    users,
+    pagination: {
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limit),
+    },
+    data: users,
   });
 });
 
-// @desc    Get all PGs
-// @route   GET /api/admin/pgs
-// @access  Admin
+// ================= PGs =================
 export const getAllPGs = asyncHandler(async (req, res) => {
-  const pgs = await PG.find()
-    .populate('owner', 'name email role')
-    .sort({ createdAt: -1 });
+  const { page = 1, limit = 10 } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const [pgs, total] = await Promise.all([
+    PG.find()
+      .populate("owner", "name email role")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit)),
+    PG.countDocuments(),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: pgs.length,
-    pgs,
+    pagination: {
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limit),
+    },
+    data: pgs,
   });
 });
 
-// @desc    Get all bookings
-// @route   GET /api/admin/bookings
-// @access  Admin
+// ================= BOOKINGS =================
 export const getAllBookings = asyncHandler(async (req, res) => {
-  const bookings = await Booking.find()
-    .populate('user', 'name email')
-    .populate('owner', 'name email')
-    .populate('pg', 'title city locality rent')
-    .sort({ createdAt: -1 });
+  const { page = 1, limit = 10 } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const [bookings, total] = await Promise.all([
+    Booking.find()
+      .populate("user", "name email")
+      .populate("owner", "name email")
+      .populate("pg", "title city locality rent")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit)),
+    Booking.countDocuments(),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: bookings.length,
-    bookings,
+    pagination: {
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limit),
+    },
+    data: bookings,
   });
 });
 
-// @desc    Delete user
-// @route   DELETE /api/admin/users/:id
-// @access  Admin
+// ================= DELETE USER (SAFE) =================
 export const deleteUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
 
   if (!user) {
     res.status(404);
-    throw new Error('User not found');
+    throw new Error("User not found");
   }
 
-  await user.deleteOne();
+  // Soft delete
+  user.isDeleted = true;
+  await user.save();
 
   res.status(200).json({
     success: true,
-    message: 'User deleted successfully',
+    message: "User deactivated successfully",
   });
 });
 
-// @desc    Delete PG
-// @route   DELETE /api/admin/pgs/:id
-// @access  Admin
+// ================= DELETE PG =================
 export const deletePG = asyncHandler(async (req, res) => {
   const pg = await PG.findById(req.params.id);
 
   if (!pg) {
     res.status(404);
-    throw new Error('PG not found');
+    throw new Error("PG not found");
   }
 
-  await pg.deleteOne();
+  pg.isDeleted = true;
+  await pg.save();
 
   res.status(200).json({
     success: true,
-    message: 'PG deleted successfully',
+    message: "PG removed successfully",
   });
 });
 
-// @desc    Approve PG
-// @route   PUT /api/admin/pgs/:id/approve
-// @access  Admin
+// ================= APPROVE / REJECT =================
 export const approvePG = asyncHandler(async (req, res) => {
-  const pg = await PG.findById(req.params.id);
+  const pg = await PG.findByIdAndUpdate(
+    req.params.id,
+    { approvalStatus: "approved" },
+    { new: true }
+  );
 
   if (!pg) {
     res.status(404);
-    throw new Error('PG not found');
+    throw new Error("PG not found");
   }
-
-  pg.approvalStatus = 'approved';
-  await pg.save();
 
   res.status(200).json({
     success: true,
-    message: 'PG approved successfully',
+    message: "PG approved",
     pg,
   });
 });
 
-// @desc    Reject PG
-// @route   PUT /api/admin/pgs/:id/reject
-// @access  Admin
 export const rejectPG = asyncHandler(async (req, res) => {
-  const pg = await PG.findById(req.params.id);
+  const pg = await PG.findByIdAndUpdate(
+    req.params.id,
+    { approvalStatus: "rejected" },
+    { new: true }
+  );
 
   if (!pg) {
     res.status(404);
-    throw new Error('PG not found');
+    throw new Error("PG not found");
   }
-
-  pg.approvalStatus = 'rejected';
-  await pg.save();
 
   res.status(200).json({
     success: true,
-    message: 'PG rejected successfully',
+    message: "PG rejected",
     pg,
   });
 });
 
-// @desc    Block user
-// @route   PUT /api/admin/users/:id/block
-// @access  Admin
+// ================= BLOCK USER =================
 export const blockUser = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.params.id);
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    { isBlocked: true },
+    { new: true }
+  );
 
   if (!user) {
     res.status(404);
-    throw new Error('User not found');
+    throw new Error("User not found");
   }
-
-  user.isBlocked = true;
-  await user.save();
 
   res.status(200).json({
     success: true,
-    message: 'User blocked successfully',
+    message: "User blocked",
     user,
   });
 });
 
-// @desc    Unblock user
-// @route   PUT /api/admin/users/:id/unblock
-// @access  Admin
 export const unblockUser = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.params.id);
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    { isBlocked: false },
+    { new: true }
+  );
 
   if (!user) {
     res.status(404);
-    throw new Error('User not found');
+    throw new Error("User not found");
   }
-
-  user.isBlocked = false;
-  await user.save();
 
   res.status(200).json({
     success: true,
-    message: 'User unblocked successfully',
+    message: "User unblocked",
     user,
   });
 });
 
-// @desc    Get dashboard stats
-// @route   GET /api/admin/stats
-// @access  Admin
+// ================= DASHBOARD STATS (OPTIMIZED) =================
 export const getDashboardStats = asyncHandler(async (req, res) => {
-  const totalUsers = await User.countDocuments();
-  const totalPGs = await PG.countDocuments();
-  const totalBookings = await Booking.countDocuments();
-
-  const totalOwners = await User.countDocuments({ role: 'owner' });
-  const totalStudents = await User.countDocuments({ role: 'student' });
-
-  const pendingPGs = await PG.countDocuments({
-    approvalStatus: 'pending',
-  });
-
-  const approvedPGs = await PG.countDocuments({
-    approvalStatus: 'approved',
-  });
-
-  const rejectedPGs = await PG.countDocuments({
-    approvalStatus: 'rejected',
-  });
+  const [
+    totalUsers,
+    totalPGs,
+    totalBookings,
+    totalOwners,
+    totalUsersRole,
+    pendingPGs,
+    approvedPGs,
+    rejectedPGs,
+  ] = await Promise.all([
+    User.countDocuments(),
+    PG.countDocuments(),
+    Booking.countDocuments(),
+    User.countDocuments({ role: "owner" }),
+    User.countDocuments({ role: "user" }),
+    PG.countDocuments({ approvalStatus: "pending" }),
+    PG.countDocuments({ approvalStatus: "approved" }),
+    PG.countDocuments({ approvalStatus: "rejected" }),
+  ]);
 
   res.status(200).json({
     success: true,
@@ -200,7 +223,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       totalPGs,
       totalBookings,
       totalOwners,
-      totalStudents,
+      totalUsersRole,
       pendingPGs,
       approvedPGs,
       rejectedPGs,

@@ -1,4 +1,4 @@
-import express from 'express';
+import express from "express";
 import {
   createBooking,
   getMyBookings,
@@ -6,16 +6,22 @@ import {
   approveBooking,
   rejectBooking,
   cancelBooking,
-} from '../controllers/bookingController.js';
-import { protect } from '../middlewares/authMiddleware.js';
+} from "../controllers/bookingController.js";
+
+import { protect, authorize } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.post('/', protect, createBooking);
-router.get('/my', protect, getMyBookings);
-router.get('/owner', protect, getOwnerBookings);
-router.put('/:id/approve', protect, approveBooking);
-router.put('/:id/reject', protect, rejectBooking);
-router.put('/:id/cancel', protect, cancelBooking);
+//  User Routes
+router.post("/", protect, authorize("user"), createBooking);
+router.get("/my", protect, authorize("user"), getMyBookings);
+
+//  Owner Routes
+router.get("/owner", protect, authorize("owner", "admin"), getOwnerBookings);
+router.put("/:id/approve", protect, authorize("owner", "admin"), approveBooking);
+router.put("/:id/reject", protect, authorize("owner", "admin"), rejectBooking);
+
+//  Cancel (User)
+router.put("/:id/cancel", protect, authorize("user"), cancelBooking);
 
 export default router;

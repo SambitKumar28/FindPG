@@ -1,34 +1,33 @@
-import Booking from '../models/Booking.js';
-import PG from '../models/PG.js';
-import asyncHandler from '../middlewares/asyncHandler.js';
+import Booking from "../models/Booking.js";
+import PG from "../models/PG.js";
+import asyncHandler from "../middlewares/asyncHandler.js";
 
-// @desc    Create booking request
-// @route   POST /api/bookings
-// @access  Private
+// ================= CREATE BOOKING =================
 export const createBooking = asyncHandler(async (req, res) => {
   const { pgId, moveInDate, message } = req.body;
 
   if (!pgId || !moveInDate) {
     res.status(400);
-    throw new Error('PG ID and move-in date are required');
+    throw new Error("PG ID and move-in date are required");
   }
 
   const pg = await PG.findById(pgId);
 
   if (!pg) {
     res.status(404);
-    throw new Error('PG not found');
+    throw new Error("PG not found");
   }
 
+  // Prevent duplicate pending bookings
   const existingBooking = await Booking.findOne({
     user: req.user._id,
     pg: pgId,
-    status: 'pending',
+    status: "pending",
   });
 
   if (existingBooking) {
     res.status(400);
-    throw new Error('You already have a pending booking request for this PG');
+    throw new Error("You already have a pending booking");
   }
 
   const booking = await Booking.create({
@@ -37,120 +36,163 @@ export const createBooking = asyncHandler(async (req, res) => {
     owner: pg.owner,
     moveInDate,
     message,
+    status: "pending",
   });
 
   res.status(201).json({
     success: true,
-    message: 'Booking request created successfully',
+    message: "Booking created successfully",
     booking,
   });
 });
 
-// @desc    Get current user's bookings
-// @route   GET /api/bookings/my
-// @access  Private
+// ================= USER BOOKINGS =================
 export const getMyBookings = asyncHandler(async (req, res) => {
-  const bookings = await Booking.find({ user: req.user._id })
-    .populate('pg', 'title city locality rent images')
-    .sort({ createdAt: -1 });
+  const { page = 1, limit = 10 } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const [bookings, total] = await Promise.all([
+    Booking.find({ user: req.user._id })
+      .populate("pg", "title city locality rent images")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit)),
+    Booking.countDocuments({ user: req.user._id }),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: bookings.length,
-    bookings,
+    pagination: {
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limit),
+    },
+    data: bookings,
   });
 });
 
-// @desc    Get booking requests for PG owner
-// @route   GET /api/bookings/owner
-// @access  Private
+// ================= OWNER BOOKINGS =================
 export const getOwnerBookings = asyncHandler(async (req, res) => {
-  const bookings = await Booking.find({ owner: req.user._id })
-    .populate('user', 'name email phone')
-    .populate('pg', 'title city locality rent')
-    .sort({ createdAt: -1 });
+  const { page = 1, limit = 10 } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const [bookings, total] = await Promise.all([
+    Booking.find({ owner: req.user._id })
+      .populate("user", "name email")
+      .populate("pg", "title city locality rent")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit)),
+    Booking.countDocuments({ owner: req.user._id }),
+  ]);
 
   res.status(200).json({
     success: true,
-    count: bookings.length,
-    bookings,
+    pagination: {
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limit),
+    },
+    data: bookings,
   });
 });
 
-// @desc    Approve booking request
-// @route   PUT /api/bookings/:id/approve
-// @access  Private
+// ================= APPROVE =================
 export const approveBooking = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
 
   if (!booking) {
     res.status(404);
-    throw new Error('Booking not found');
+    throw new Error("Booking not found");
   }
 
-  if (booking.owner.toString() !== req.user._id.toString()) {
+  // Owner OR Admin
+  if (
+    booking.owner.toString() !== req.user._id.toString() &&
+    req.user.role !== "admin"
+  ) {
     res.status(403);
-    throw new Error('Not authorized to approve this booking');
+    throw new Error("Not authorized");
   }
 
-  booking.status = 'approved';
+  if (booking.status !== "pending") {
+    res.status(400);
+    throw new Error("Only pending bookings can be approved");
+  }
+
+  booking.status = "approved";
   await booking.save();
 
   res.status(200).json({
     success: true,
-    message: 'Booking approved successfully',
+    message: "Booking approved",
     booking,
   });
 });
 
-// @desc    Reject booking request
-// @route   PUT /api/bookings/:id/reject
-// @access  Private
+// ================= REJECT =================
 export const rejectBooking = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
 
   if (!booking) {
     res.status(404);
-    throw new Error('Booking not found');
+    throw new Error("Booking not found");
   }
 
-  if (booking.owner.toString() !== req.user._id.toString()) {
+  if (
+    booking.owner.toString() !== req.user._id.toString() &&
+    req.user.role !== "admin"
+  ) {
     res.status(403);
-    throw new Error('Not authorized to reject this booking');
+    throw new Error("Not authorized");
   }
 
-  booking.status = 'rejected';
+  if (booking.status !== "pending") {
+    res.status(400);
+    throw new Error("Only pending bookings can be rejected");
+  }
+
+  booking.status = "rejected";
   await booking.save();
 
   res.status(200).json({
     success: true,
-    message: 'Booking rejected successfully',
+    message: "Booking rejected",
     booking,
   });
 });
 
-// @desc    Cancel booking request
-// @route   PUT /api/bookings/:id/cancel
-// @access  Private
+// ================= CANCEL =================
 export const cancelBooking = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
 
   if (!booking) {
     res.status(404);
-    throw new Error('Booking not found');
+    throw new Error("Booking not found");
   }
 
-  if (booking.user.toString() !== req.user._id.toString()) {
+  // Only user OR admin
+  if (
+    booking.user.toString() !== req.user._id.toString() &&
+    req.user.role !== "admin"
+  ) {
     res.status(403);
-    throw new Error('Not authorized to cancel this booking');
+    throw new Error("Not authorized");
   }
 
-  booking.status = 'cancelled';
+  if (booking.status !== "pending") {
+    res.status(400);
+    throw new Error("Only pending bookings can be cancelled");
+  }
+
+  booking.status = "cancelled";
   await booking.save();
 
   res.status(200).json({
     success: true,
-    message: 'Booking cancelled successfully',
+    message: "Booking cancelled",
     booking,
   });
 });

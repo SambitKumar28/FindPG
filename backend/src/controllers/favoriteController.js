@@ -1,72 +1,92 @@
-import User from '../models/User.js';
-import PG from '../models/PG.js';
-import asyncHandler from '../middlewares/asyncHandler.js';
+import User from "../models/User.js";
+import PG from "../models/PG.js";
+import asyncHandler from "../middlewares/asyncHandler.js";
 
-// @desc    Get all favorite PGs
-// @route   GET /api/favorites
-// @access  Private
+// ================= GET FAVORITES =================
 export const getFavorites = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id).populate({
-    path: 'favorites',
-    select: 'title city locality rent images gender roomType amenities',
-  });
+  const { page = 1, limit = 10 } = req.query;
+
+  const user = await User.findById(req.user._id)
+    .populate({
+      path: "favorites",
+      select: "title city locality rent images",
+      options: {
+        skip: (page - 1) * limit,
+        limit: Number(limit),
+      },
+    })
+    .lean();
 
   res.status(200).json({
     success: true,
     count: user.favorites.length,
-    favorites: user.favorites,
+    data: user.favorites,
   });
 });
 
-// @desc    Add PG to favorites
-// @route   POST /api/favorites/:pgId
-// @access  Private
+// ================= ADD =================
 export const addToFavorites = asyncHandler(async (req, res) => {
   const { pgId } = req.params;
 
-  const pg = await PG.findById(pgId);
-
-  if (!pg) {
+  const pgExists = await PG.exists({ _id: pgId });
+  if (!pgExists) {
     res.status(404);
-    throw new Error('PG not found');
+    throw new Error("PG not found");
   }
 
-  const user = await User.findById(req.user._id);
-
-  const alreadyFavorite = user.favorites.includes(pgId);
-
-  if (alreadyFavorite) {
-    res.status(400);
-    throw new Error('PG already added to favorites');
-  }
-
-  user.favorites.push(pgId);
-  await user.save();
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user._id,
+    { $addToSet: { favorites: pgId } }, // prevents duplicates
+    { new: true }
+  );
 
   res.status(200).json({
     success: true,
-    message: 'PG added to favorites successfully',
-    favorites: user.favorites,
+    message: "Added to favorites",
+    favorites: updatedUser.favorites,
   });
 });
 
-// @desc    Remove PG from favorites
-// @route   DELETE /api/favorites/:pgId
-// @access  Private
+// ================= REMOVE =================
 export const removeFromFavorites = asyncHandler(async (req, res) => {
+  const { pgId } = req.params;
+
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user._id,
+    { $pull: { favorites: pgId } },
+    { new: true }
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Removed from favorites",
+    favorites: updatedUser.favorites,
+  });
+});
+
+// ================= TOGGLE (BEST PRACTICE) =================
+export const toggleFavorite = asyncHandler(async (req, res) => {
   const { pgId } = req.params;
 
   const user = await User.findById(req.user._id);
 
-  user.favorites = user.favorites.filter(
-    (favoriteId) => favoriteId.toString() !== pgId
-  );
+  const isFavorite = user.favorites.includes(pgId);
 
-  await user.save();
+  const update = isFavorite
+    ? { $pull: { favorites: pgId } }
+    : { $addToSet: { favorites: pgId } };
+
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user._id,
+    update,
+    { new: true }
+  );
 
   res.status(200).json({
     success: true,
-    message: 'PG removed from favorites successfully',
-    favorites: user.favorites,
+    message: isFavorite
+      ? "Removed from favorites"
+      : "Added to favorites",
+    favorites: updatedUser.favorites,
   });
 });

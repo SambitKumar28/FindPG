@@ -1,127 +1,98 @@
-import PG from '../models/PG.js';
-import asyncHandler from '../middlewares/asyncHandler.js';
-import cloudinary from '../config/cloudinary.js';
+import PG from "../models/PG.js";
+import asyncHandler from "../middlewares/asyncHandler.js";
+import cloudinary from "../config/cloudinary.js";
 
+// ================= CREATE PG =================
 export const createPG = asyncHandler(async (req, res) => {
-  const {
-    title,
-    description,
-    city,
-    locality,
-    address,
-    rent,
-    securityDeposit,
-    genderPreference,
-    roomType,
-    amenities,
-  } = req.body;
-
-  const imageUrls = req.files
-    ? req.files.map((file) => ({
-        public_id: file.filename,
-        url: file.path,
-      }))
-    : [];
+  const imageUrls = req.files?.map((file) => ({
+    public_id: file.filename,
+    url: file.path,
+  })) || [];
 
   const pg = await PG.create({
-    title,
-    description,
-    city,
-    locality,
-    address,
-    rent,
-    securityDeposit,
-    genderPreference,
-    roomType,
-    amenities,
+    ...req.body,
     images: imageUrls,
     owner: req.user._id,
   });
 
   res.status(201).json({
     success: true,
-    message: 'PG listing created successfully',
+    message: "PG created successfully",
     pg,
   });
 });
 
+// ================= GET ALL PGs =================
 export const getAllPGs = asyncHandler(async (req, res) => {
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 10;
+  const {
+    page = 1,
+    limit = 10,
+    keyword,
+    genderPreference,
+    roomType,
+    minRent,
+    maxRent,
+    sort,
+  } = req.query;
+
+  const query = {};
+
+  //  Search
+  if (keyword) {
+    query.$or = [
+      { city: { $regex: keyword, $options: "i" } },
+      { locality: { $regex: keyword, $options: "i" } },
+      { title: { $regex: keyword, $options: "i" } },
+    ];
+  }
+
+  //  Filters
+  if (genderPreference) query.genderPreference = genderPreference;
+  if (roomType) query.roomType = roomType;
+
+  if (minRent || maxRent) {
+    query.rent = {};
+    if (minRent) query.rent.$gte = Number(minRent);
+    if (maxRent) query.rent.$lte = Number(maxRent);
+  }
+
+  //  Sorting
+  let sortOption = { createdAt: -1 };
+  if (sort === "rentLowToHigh") sortOption = { rent: 1 };
+  if (sort === "rentHighToLow") sortOption = { rent: -1 };
+
   const skip = (page - 1) * limit;
 
-  const keyword = req.query.keyword
-    ? {
-        $or: [
-          { city: { $regex: req.query.keyword, $options: 'i' } },
-          { locality: { $regex: req.query.keyword, $options: 'i' } },
-          { title: { $regex: req.query.keyword, $options: 'i' } },
-        ],
-        }
-    : {};
-
-  const filters = {
-    ...keyword,
-  };
-
-  if (req.query.genderPreference) {
-    filters.genderPreference = req.query.genderPreference;
-  }
-
-  if (req.query.roomType) {
-    filters.roomType = req.query.roomType;
-  }
-
-  if (req.query.minRent || req.query.maxRent) {
-    filters.rent = {};
-
-    if (req.query.minRent) {
-      filters.rent.$gte = Number(req.query.minRent);
-    }
-
-    if (req.query.maxRent) {
-      filters.rent.$lte = Number(req.query.maxRent);
-    }
-  }
-
-  let sortOption = { createdAt: -1 };
-
-  if (req.query.sort === 'rentLowToHigh') {
-    sortOption = { rent: 1 };
-  }
-
-  if (req.query.sort === 'rentHighToLow') {
-    sortOption = { rent: -1 };
-  }
-
-  const totalPGs = await PG.countDocuments(filters);
-
-  const pgs = await PG.find(filters)
-    .populate('owner', 'name email')
-    .sort(sortOption)
-    .skip(skip)
-    .limit(limit);
-
+  const [pgs, total] = await Promise.all([
+    PG.find(query)
+      .populate("owner", "name email")
+      .sort(sortOption)
+      .skip(skip)
+      .limit(Number(limit)),
+    PG.countDocuments(query),
+  ]);
 
   res.status(200).json({
     success: true,
-    currentPage: page,
-    totalPages: Math.ceil(totalPGs / limit),
-    totalPGs,
-    count: pgs.length,
-    pgs,
+    pagination: {
+      currentPage: Number(page),
+      totalPages: Math.ceil(total / limit),
+      total,
+    },
+    data: pgs,
   });
 });
 
+// ================= GET SINGLE PG =================
 export const getPGById = asyncHandler(async (req, res) => {
   const pg = await PG.findById(req.params.id).populate(
-    'owner',
-    'name email phone'
+    "owner",
+    "name email"
   );
 
   if (!pg) {
     res.status(404);
-    throw new Error('PG not found');
+    throw new Error("PG not found");
   }
 
   res.status(200).json({
@@ -130,23 +101,34 @@ export const getPGById = asyncHandler(async (req, res) => {
   });
 });
 
-
+// ================= UPDATE PG =================
 export const updatePG = asyncHandler(async (req, res) => {
   const pg = await PG.findById(req.params.id);
 
   if (!pg) {
     res.status(404);
-    throw new Error('PG not found');
+    throw new Error("PG not found");
   }
 
-  if (pg.owner.toString() !== req.user._id.toString()) {
+  //  Owner OR Admin can update
+  if (
+    pg.owner.toString() !== req.user._id.toString() &&
+    req.user.role !== "admin"
+  ) {
     res.status(403);
-    throw new Error('You are not authorized to update this PG');
+    throw new Error("Not authorized");
   }
 
-  if (req.files && req.files.length > 0) {
-    for (const image of pg.images) {
-      await cloudinary.uploader.destroy(image.public_id);
+  //  Replace Images
+  if (req.files?.length > 0) {
+    try {
+      await Promise.all(
+        pg.images.map((img) =>
+          cloudinary.uploader.destroy(img.public_id)
+        )
+      );
+    } catch (err) {
+      console.error("Image delete failed:", err.message);
     }
 
     pg.images = req.files.map((file) => ({
@@ -155,45 +137,50 @@ export const updatePG = asyncHandler(async (req, res) => {
     }));
   }
 
-  pg.title = req.body.title || pg.title;
-  pg.description = req.body.description || pg.description;
-  pg.city = req.body.city || pg.city;
-  pg.locality = req.body.locality || pg.locality;
-  pg.address = req.body.address || pg.address;
-  pg.rent = req.body.rent || pg.rent;
-  pg.securityDeposit = req.body.securityDeposit || pg.securityDeposit;
-  pg.genderPreference =
-    req.body.genderPreference || pg.genderPreference;
-  pg.roomType = req.body.roomType || pg.roomType;
-  pg.amenities = req.body.amenities || pg.amenities;
+  Object.assign(pg, req.body);
 
   const updatedPG = await pg.save();
 
   res.status(200).json({
     success: true,
-    message: 'PG updated successfully',
+    message: "PG updated successfully",
     pg: updatedPG,
   });
 });
 
+// ================= DELETE PG =================
 export const deletePG = asyncHandler(async (req, res) => {
   const pg = await PG.findById(req.params.id);
 
   if (!pg) {
     res.status(404);
-    throw new Error('PG not found');
+    throw new Error("PG not found");
   }
 
-  if (pg.owner.toString() !== req.user._id.toString()) {
+  //  Owner OR Admin
+  if (
+    pg.owner.toString() !== req.user._id.toString() &&
+    req.user.role !== "admin"
+  ) {
     res.status(403);
-    throw new Error('You are not authorized to delete this PG');
+    throw new Error("Not authorized");
+  }
+
+  //  Delete Images from Cloudinary
+  try {
+    await Promise.all(
+      pg.images.map((img) =>
+        cloudinary.uploader.destroy(img.public_id)
+      )
+    );
+  } catch (err) {
+    console.error("Cloudinary delete failed:", err.message);
   }
 
   await pg.deleteOne();
 
-
   res.status(200).json({
     success: true,
-    message: 'PG deleted successfully',
+    message: "PG deleted successfully",
   });
 });

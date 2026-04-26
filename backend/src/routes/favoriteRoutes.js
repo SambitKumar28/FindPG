@@ -1,15 +1,23 @@
-import express from 'express';
+import express from "express";
 import {
   addToFavorites,
   removeFromFavorites,
   getFavorites,
-} from '../controllers/favoriteController.js';
-import { protect } from '../middlewares/authMiddleware.js';
+  toggleFavorite,
+} from "../controllers/favoriteController.js";
+
+import { protect, authorize } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.get('/', protect, getFavorites);
-router.post('/:pgId', protect, addToFavorites);
-router.delete('/:pgId', protect, removeFromFavorites);
+//  User-only routes
+router.get("/", protect, authorize("user"), getFavorites);
+
+//  Toggle (better UX)
+router.post("/toggle/:pgId", protect, authorize("user"), toggleFavorite);
+
+// Optional explicit routes
+router.post("/:pgId", protect, authorize("user"), addToFavorites);
+router.delete("/:pgId", protect, authorize("user"), removeFromFavorites);
 
 export default router;
