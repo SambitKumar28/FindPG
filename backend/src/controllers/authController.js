@@ -20,8 +20,9 @@ const generateRefreshToken = (id) => {
 const sendRefreshToken = (res, token) => {
   res.cookie("refreshToken", token, {
     httpOnly: true,
-    secure: true,
-    sameSite: "none",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 };
 
@@ -74,7 +75,12 @@ export const loginUser = asyncHandler(async (req, res) => {
     throw new Error("Invalid email or password");
   }
 
-  const isMatch = await bcrypt.compare(password, user.password);
+  if (user.isBlocked) {
+    res.status(403);
+    throw new Error("User is blocked");
+  }
+
+  const isMatch = await user.matchPassword(password);
 
   if (!isMatch) {
     res.status(401);
@@ -88,7 +94,6 @@ export const loginUser = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: "Login successful",
     accessToken,
     user: {
       id: user._id,
@@ -140,6 +145,6 @@ export const logoutUser = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: "Logout successful",
+    message: "Logged out",
   });
 });

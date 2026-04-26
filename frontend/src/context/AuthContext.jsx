@@ -1,44 +1,100 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useState, useEffect, useContext } from "react";
 import API from "../api/axios";
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = async (formData) => {
-    const { data } = await API.post("/auth/login", formData);
+  // ================= AUTO LOGIN =================
+  useEffect(() => {
+    const loadUser = async () => {
+      const token = localStorage.getItem("accessToken");
 
-    localStorage.setItem("accessToken", data.accessToken);
-    setUser(data.user);
-  };
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
+      try {
+        const res = await API.get("/auth/me");
+        setUser(res.data.user);
+      } catch (err) {
+        console.log("Auto login failed");
+        setUser(null);
+        localStorage.removeItem("accessToken");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUser();
+  }, []);
+
+  // ================= REGISTER =================
   const register = async (formData) => {
-    await API.post("/auth/register", formData);
+    try {
+      const res = await API.post("/auth/register", formData);
+
+      // optional: auto login after register
+      // better UX for SaaS
+      await login({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      return { success: true, message: res.data.message };
+    } catch (err) {
+      return {
+        success: false,
+        message: err.response?.data?.message || "Registration failed",
+      };
+    }
   };
 
+  // ================= LOGIN =================
+  const login = async (credentials) => {
+    try {
+      const res = await API.post("/auth/login", credentials);
+
+      localStorage.setItem("accessToken", res.data.accessToken);
+      setUser(res.data.user);
+
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        message: err.response?.data?.message || "Login failed",
+      };
+    }
+  };
+
+  // ================= LOGOUT =================
   const logout = async () => {
-    await API.post("/auth/logout");
+    try {
+      await API.post("/auth/logout");
+    } catch (err) {
+      console.log("Logout API failed");
+    }
+
     localStorage.removeItem("accessToken");
     setUser(null);
   };
 
-  // const loadUser = async () => {
-  //   try {
-  //     const { data } = await API.get("/auth/me");
-  //     setUser(data.user);
-  //   } catch {
-  //     setUser(null);
-  //   }
-  // };
-
-  // useEffect(() => {
-  //   loadUser();
-  // }, []);
-
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register, 
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
+
+export const useAuth = () => useContext(AuthContext);

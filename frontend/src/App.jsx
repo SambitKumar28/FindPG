@@ -9,8 +9,8 @@ import VisitePg from "./pages/VisitePg";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import { AuthProvider } from "./context/AuthContext";
-import OwnerRoute from "./components/OwnerRoute";
 import OwnerDashboard from "./pages/owner/OwnerDashboard";
+import ProtectedRoute from "./routes/ProtectedRoute";
 
 const App = () => {
   return (
@@ -28,9 +28,9 @@ const App = () => {
           <Route
             path="/owner/dashboard"
             element={
-              <OwnerRoute>
+              <ProtectedRoute>
                 <OwnerDashboard />
-              </OwnerRoute>
+              </ProtectedRoute>
             }
           />
         </Routes>

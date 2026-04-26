@@ -6,7 +6,6 @@ import { FaFacebookF } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
-
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -20,6 +19,12 @@ const Login = () => {
 
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const handleLogin = async () => {
+    const res = await API.post("/auth/login", formData);
+
+    login(res.data);
+  };
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -37,9 +42,7 @@ const Login = () => {
       alert("Login successful");
       navigate("/owner/dashboard"); // 👉 change to dashboard later
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Invalid email or password"
-      );
+      setError(err.response?.data?.message || "Invalid email or password");
     } finally {
       setLoading(false);
     }
@@ -72,12 +75,9 @@ const Login = () => {
         {/* Right Side */}
         <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
           <div className="max-w-md mx-auto w-full">
-            <h2 className="text-4xl font-bold text-gray-900">
-              Login Account
-            </h2>
+            <h2 className="text-4xl font-bold text-gray-900">Login Account</h2>
 
             <form onSubmit={handleSubmit} className="mt-10 space-y-6">
-              
               {/* Email */}
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -115,9 +115,7 @@ const Login = () => {
 
               {/* Error */}
               {error && (
-                <p className="text-red-500 text-sm text-center">
-                  {error}
-                </p>
+                <p className="text-red-500 text-sm text-center">{error}</p>
               )}
 
               {/* Button */}

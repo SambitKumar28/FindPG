@@ -12,10 +12,10 @@ const OwnerDashboard = () => {
   const fetchData = async () => {
     try {
       const pgRes = await API.get("/pgs");
-      const bookingRes = await API.get("/bookings/owner");
+    //   const bookingRes = await API.get("/bookings/owner");
 
       setPgs(pgRes.data.pgs);
-      setBookings(bookingRes.data.bookings);
+    //   setBookings(bookingRes.data.bookings);
     } catch (err) {
       console.error(err);
     }
