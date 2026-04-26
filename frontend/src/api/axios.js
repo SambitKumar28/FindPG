@@ -5,7 +5,7 @@ const API = axios.create({
   withCredentials: true,
 });
 
-// 🔐 Attach token
+//  Attach token
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
 
@@ -16,7 +16,7 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-// 🔁 Refresh token logic
+//  Refresh token logic
 API.interceptors.response.use(
   (res) => res,
   async (error) => {
