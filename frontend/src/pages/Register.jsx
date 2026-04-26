@@ -11,14 +11,59 @@ import {
   Building2,
   Users,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { FaFacebookF } from "react-icons/fa";
+import { useAuth } from "../hooks/useAuth";
+
 
 const Register = () => {
   const [selectedRole, setSelectedRole] = useState("user");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirmPassword: "",
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const  register  = useAuth();
+  const navigate = useNavigate();
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (form.password !== form.confirmPassword) {
+      return setError("Passwords do not match");
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      await register({
+        ...form,
+        role: selectedRole,
+      });
+
+      alert("Registration successful");
+      navigate("/login");
+    } catch (err) {
+      setError(err.response?.data?.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-16 relative overflow-hidden">
@@ -34,7 +79,7 @@ const Register = () => {
         {/* Left Section */}
         <div className="hidden lg:flex bg-linear-to-br from-cyan-600 via-blue-600 to-indigo-700 text-white p-14 flex-col justify-between">
           <div>
-            <span className="inline-block bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-sm font-medium mb-6">
+            <span className="inline-block bg-white/20 px-4 py-2 rounded-full text-sm mb-6">
               Join FindPG
             </span>
 
@@ -42,252 +87,137 @@ const Register = () => {
               Create Your Account & Start Your Journey
             </h1>
 
-            <p className="mt-6 text-cyan-100 text-lg leading-relaxed">
-              Whether you are searching for a PG or listing your property, join
-              FindPG and connect with the right people faster.
+            <p className="mt-6 text-cyan-100 text-lg">
+              Join FindPG and connect with the right people faster.
             </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6 mt-12">
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/10">
-              <h3 className="text-3xl font-bold">1000+</h3>
-              <p className="text-cyan-100 mt-2">Verified PG Listings</p>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/10">
-              <h3 className="text-3xl font-bold">25K+</h3>
-              <p className="text-cyan-100 mt-2">Trusted Users</p>
-            </div>
           </div>
         </div>
 
         {/* Right Section */}
         <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
           <div className="max-w-md mx-auto w-full">
-            <div className="text-center lg:text-left">
-              <h2 className="text-4xl font-bold text-gray-900">
-                Create Account
-              </h2>
-
-              <p className="text-gray-500 mt-3">
-                Choose your role and fill in your details
-              </p>
-            </div>
+            <h2 className="text-4xl font-bold text-gray-900">
+              Create Account
+            </h2>
 
             {/* Role Selection */}
             <div className="grid grid-cols-2 gap-4 mt-8 mb-8">
               <button
                 type="button"
                 onClick={() => setSelectedRole("user")}
-                className={`rounded-3xl border p-5 transition-all duration-300 text-left ${
+                className={`p-5 rounded-3xl border ${
                   selectedRole === "user"
-                    ? "border-cyan-600 bg-cyan-50 shadow-md"
-                    : "border-gray-200 bg-white hover:border-cyan-300"
+                    ? "border-cyan-600 bg-cyan-50"
+                    : "border-gray-200"
                 }`}
               >
-                <div className="w-12 h-12 rounded-2xl bg-cyan-100 flex items-center justify-center text-cyan-600 mb-4">
-                  <Users size={24} />
-                </div>
-
-                <h3 className="text-lg font-bold text-gray-900">User</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  Looking for PG accommodation
-                </p>
+                <Users /> User
               </button>
 
               <button
                 type="button"
                 onClick={() => setSelectedRole("owner")}
-                className={`rounded-3xl border p-5 transition-all duration-300 text-left ${
+                className={`p-5 rounded-3xl border ${
                   selectedRole === "owner"
-                    ? "border-cyan-600 bg-cyan-50 shadow-md"
-                    : "border-gray-200 bg-white hover:border-cyan-300"
+                    ? "border-cyan-600 bg-cyan-50"
+                    : "border-gray-200"
                 }`}
               >
-                <div className="w-12 h-12 rounded-2xl bg-cyan-100 flex items-center justify-center text-cyan-600 mb-4">
-                  <Building2 size={24} />
-                </div>
-
-                <h3 className="text-lg font-bold text-gray-900">Owner</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  Want to list your PG property
-                </p>
+                <Building2 /> Owner
               </button>
             </div>
 
-            <form className="space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Full Name
-                </label>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Name */}
+              <input
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                placeholder="Full Name"
+                className="w-full border p-4 rounded-2xl"
+              />
 
-                <div className="relative">
-                  <User
-                    size={20}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
+              {/* Email */}
+              <input
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                placeholder="Email"
+                className="w-full border p-4 rounded-2xl"
+              />
 
-                  <input
-                    type="text"
-                    placeholder="Enter your full name"
-                    className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 transition"
-                  />
-                </div>
+              {/* Phone */}
+              <input
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+                placeholder="Phone"
+                className="w-full border p-4 rounded-2xl"
+              />
+
+              {/* Password */}
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  placeholder="Password"
+                  className="w-full border p-4 rounded-2xl"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-4"
+                >
+                  {showPassword ? <EyeOff /> : <Eye />}
+                </button>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Address
-                </label>
-
-                <div className="relative">
-                  <Mail
-                    size={20}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-
-                  <input
-                    type="email"
-                    placeholder="Enter your email"
-                    className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 transition"
-                  />
-                </div>
+              {/* Confirm Password */}
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Confirm Password"
+                  className="w-full border p-4 rounded-2xl"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowConfirmPassword(!showConfirmPassword)
+                  }
+                  className="absolute right-4 top-4"
+                >
+                  {showConfirmPassword ? <EyeOff /> : <Eye />}
+                </button>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Phone Number
-                </label>
-
-                <div className="relative">
-                  <Phone
-                    size={20}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-
-                  <input
-                    type="tel"
-                    placeholder="Enter your phone number"
-                    className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 transition"
-                  />
-                </div>
-              </div>
-
-              {selectedRole === "owner" && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    PG / Property Name
-                  </label>
-
-                  <div className="relative">
-                    <Building2
-                      size={20}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                    />
-
-                    <input
-                      type="text"
-                      placeholder="Enter your PG or property name"
-                      className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 transition"
-                    />
-                  </div>
-                </div>
+              {/* Error */}
+              {error && (
+                <p className="text-red-500 text-sm text-center">
+                  {error}
+                </p>
               )}
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Password
-                </label>
-
-                <div className="relative">
-                  <Lock
-                    size={20}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-12 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 transition"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-                  >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Confirm Password
-                </label>
-
-                <div className="relative">
-                  <Lock
-                    size={20}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm your password"
-                    className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-12 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 transition"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowConfirmPassword(!showConfirmPassword)
-                    }
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff size={20} />
-                    ) : (
-                      <Eye size={20} />
-                    )}
-                  </button>
-                </div>
-              </div>
-
+              {/* Submit */}
               <button
                 type="submit"
-                className="w-full bg-linear-to-r from-cyan-600 to-blue-700 text-white py-4 rounded-2xl font-semibold text-lg hover:shadow-xl hover:scale-[1.01] transition-all duration-300 flex items-center justify-center gap-2"
+                disabled={loading}
+                className="w-full bg-cyan-600 text-white py-4 rounded-2xl"
               >
-                Create {selectedRole === "owner" ? "Owner" : "User"} Account
-                <ArrowRight size={20} />
+                {loading
+                  ? "Creating..."
+                  : `Create ${selectedRole} Account`}
               </button>
             </form>
 
-            <div className="flex items-center gap-4 my-8">
-              <div className="flex-1 h-px bg-gray-200"></div>
-              <span className="text-sm text-gray-400">OR</span>
-              <div className="flex-1 h-px bg-gray-200"></div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <button className="border border-gray-200 rounded-2xl py-3 font-medium hover:bg-gray-50 transition flex items-center justify-center gap-3">
-                <FcGoogle size={22} />
-                Google
-              </button>
-
-              <button className="border border-gray-200 rounded-2xl py-3 font-medium hover:bg-gray-50 transition flex items-center justify-center gap-3">
-                <FaFacebookF size={18} className="text-blue-600" />
-                Facebook
-              </button>
-            </div>
-
-            <p className="text-center text-gray-500 mt-8">
+            <p className="text-center mt-6">
               Already have an account?{" "}
-              <Link
-                to="/login"
-                className="text-cyan-600 font-semibold hover:text-cyan-700"
-              >
-                Login Here
+              <Link to="/login" className="text-cyan-600">
+                Login
               </Link>
             </p>
           </div>
