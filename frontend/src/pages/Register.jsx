@@ -33,7 +33,7 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const  register  = useAuth();
+  const  { register } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {

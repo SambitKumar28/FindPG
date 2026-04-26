@@ -23,18 +23,18 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const loadUser = async () => {
-    try {
-      const { data } = await API.get("/auth/me");
-      setUser(data.user);
-    } catch {
-      setUser(null);
-    }
-  };
+  // const loadUser = async () => {
+  //   try {
+  //     const { data } = await API.get("/auth/me");
+  //     setUser(data.user);
+  //   } catch {
+  //     setUser(null);
+  //   }
+  // };
 
-  useEffect(() => {
-    loadUser();
-  }, []);
+  // useEffect(() => {
+  //   loadUser();
+  // }, []);
 
   return (
     <AuthContext.Provider value={{ user, login, register, logout }}>

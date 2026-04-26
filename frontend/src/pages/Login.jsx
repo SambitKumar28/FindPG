@@ -3,10 +3,47 @@ import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
 import { FaFacebookF } from "react-icons/fa";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
+
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    try {
+      setLoading(true);
+      setError("");
+
+      await login(form);
+
+      alert("Login successful");
+      navigate("/owner/dashboard"); // 👉 change to dashboard later
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Invalid email or password"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-16">
@@ -20,123 +57,76 @@ const Login = () => {
         className="relative w-full max-w-6xl bg-white rounded-[40px] shadow-2xl overflow-hidden grid lg:grid-cols-2"
       >
         {/* Left Side */}
-        <div className="hidden lg:flex relative bg-linear-to-br from-cyan-600 via-blue-600 to-indigo-700 text-white p-14 flex-col justify-between">
+        <div className="hidden lg:flex bg-linear-to-br from-cyan-600 via-blue-600 to-indigo-700 text-white p-14 flex-col justify-between">
           <div>
-            <span className="inline-block bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-sm font-medium mb-6">
+            <span className="inline-block bg-white/20 px-4 py-2 rounded-full text-sm mb-6">
               Welcome Back
             </span>
 
             <h1 className="text-5xl font-bold leading-tight">
               Find Your Perfect PG Stay Easily
             </h1>
-
-            <p className="mt-6 text-cyan-100 text-lg leading-relaxed">
-              Login to explore verified PGs, manage bookings, save favorites,
-              and connect directly with property owners.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6 mt-12">
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/10">
-              <h3 className="text-3xl font-bold">500+</h3>
-              <p className="text-cyan-100 mt-2">Verified PG Listings</p>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/10">
-              <h3 className="text-3xl font-bold">10K+</h3>
-              <p className="text-cyan-100 mt-2">Happy Users</p>
-            </div>
           </div>
         </div>
 
         {/* Right Side */}
         <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
           <div className="max-w-md mx-auto w-full">
-            <div className="text-center lg:text-left">
-              <h2 className="text-4xl font-bold text-gray-900">
-                Login Account
-              </h2>
+            <h2 className="text-4xl font-bold text-gray-900">
+              Login Account
+            </h2>
 
-              <p className="text-gray-500 mt-3">
-                Enter your credentials to continue
-              </p>
-            </div>
-
-            <form className="mt-10 space-y-6">
+            <form onSubmit={handleSubmit} className="mt-10 space-y-6">
+              
               {/* Email */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Address
-                </label>
-
-                <div className="relative">
-                  <Mail
-                    size={20}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-
-                  <input
-                    type="email"
-                    placeholder="Enter your email"
-                    className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 transition"
-                  />
-                </div>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  name="email"
+                  type="email"
+                  value={form.email}
+                  onChange={handleChange}
+                  placeholder="Enter your email"
+                  className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-4 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                />
               </div>
 
               {/* Password */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Password
-                  </label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
 
-                  <Link
-                    to="/forgot-password"
-                    className="text-sm text-cyan-600 hover:text-cyan-700 font-medium"
-                  >
-                    Forgot Password?
-                  </Link>
-                </div>
+                <input
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  value={form.password}
+                  onChange={handleChange}
+                  placeholder="Enter your password"
+                  className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-12 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                />
 
-                <div className="relative">
-                  <Lock
-                    size={20}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-12 outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 transition"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2"
+                >
+                  {showPassword ? <EyeOff /> : <Eye />}
+                </button>
               </div>
 
-              {/* Remember Me */}
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
-                  />
-                  Remember me
-                </label>
-              </div>
+              {/* Error */}
+              {error && (
+                <p className="text-red-500 text-sm text-center">
+                  {error}
+                </p>
+              )}
 
               {/* Button */}
               <button
                 type="submit"
-                className="w-full bg-linear-to-r from-cyan-600 to-blue-700 text-white py-4 rounded-2xl font-semibold text-lg hover:shadow-xl hover:scale-[1.01] transition-all duration-300 flex items-center justify-center gap-2"
+                disabled={loading}
+                className="w-full bg-linear-to-r from-cyan-600 to-blue-700 text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2"
               >
-                Login
+                {loading ? "Logging in..." : "Login"}
                 <ArrowRight size={20} />
               </button>
             </form>
@@ -148,26 +138,19 @@ const Login = () => {
               <div className="flex-1 h-px bg-gray-200"></div>
             </div>
 
-            {/* Social Login */}
+            {/* Social */}
             <div className="grid grid-cols-2 gap-4">
-              <button className="border border-gray-200 rounded-2xl py-3 font-medium hover:bg-gray-50 transition flex items-center justify-center gap-3">
-                <FcGoogle size={22} />
-                Google
+              <button className="border rounded-2xl py-3 flex items-center justify-center gap-2">
+                <FcGoogle /> Google
               </button>
-
-              <button className="border border-gray-200 rounded-2xl py-3 font-medium hover:bg-gray-50 transition flex items-center justify-center gap-3">
-                <FaFacebookF size={18} className="text-blue-600" />
-                Facebook
+              <button className="border rounded-2xl py-3 flex items-center justify-center gap-2">
+                <FaFacebookF /> Facebook
               </button>
             </div>
 
-            {/* Signup */}
-            <p className="text-center text-gray-500 mt-8">
+            <p className="text-center mt-6">
               Don’t have an account?{" "}
-              <Link
-                to="/register"
-                className="text-cyan-600 font-semibold hover:text-cyan-700"
-              >
+              <Link to="/register" className="text-cyan-600">
                 Create Account
               </Link>
             </p>

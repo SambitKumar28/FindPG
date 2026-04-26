@@ -2,29 +2,35 @@ import axios from "axios";
 
 const API = axios.create({
   baseURL: "https://findpg-qhgw.onrender.com/api",
-  withCredentials: true, // needed for refresh token cookie
+  withCredentials: true,
 });
 
-// Attach token
+// 🔐 Attach token
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
-// Handle token refresh
+// 🔁 Refresh token logic
 API.interceptors.response.use(
   (res) => res,
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url.includes("/auth/refresh") // ✅ prevents infinite loop
+    ) {
       originalRequest._retry = true;
 
       try {
-        const { data } = await API.post("/auth/refresh");
+        const { data } = await API.get("/auth/refresh");
 
         localStorage.setItem("accessToken", data.accessToken);
 
