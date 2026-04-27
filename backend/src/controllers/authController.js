@@ -20,7 +20,7 @@ const generateRefreshToken = (id) => {
 const sendRefreshToken = (res, token) => {
   res.cookie("refreshToken", token, {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure: true, //  MUST for HTTPS
   sameSite: "none", //  MUST for cross-origin
 });
 };

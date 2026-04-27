@@ -40,7 +40,7 @@ if (process.env.NODE_ENV === "development") {
 //  CORS (dynamic)
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://findpg-woad.vercel.app/", // 🔥 add your deployed frontend
+  "https://findpg-woad.vercel.app", //  YOUR FRONTEND
 ];
 
 app.use(
@@ -49,7 +49,7 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("CORS not allowed"));
+        callback(new Error("CORS not allowed: " + origin));
       }
     },
     credentials: true,
