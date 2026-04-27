@@ -29,50 +29,36 @@ const AddPG = () => {
 
   // Handle image upload
   const handleImageChange = (e) => {
-    setImages(e.target.files);
+    setImages(...e.target.files);
   };
 
   // Submit
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    try {
-      setLoading(true);
+  try {
+    const formData = new FormData();
 
-      const formData = new FormData();
-
-      // append fields
-      Object.keys(form).forEach((key) => {
+    Object.keys(form).forEach((key) => {
+      if (key !== "images" && key !== "amenities") {
         formData.append(key, form[key]);
-      });
-
-      // convert amenities string → array
-      formData.set(
-        "amenities",
-        form.amenities.split(",").map((a) => a.trim())
-      );
-
-      // append images
-      for (let i = 0; i < images.length; i++) {
-        formData.append("images", images[i]);
       }
+    });
 
-      await API.post("/pgs", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+    formData.append("amenities", form.amenities.split(","));
 
-      toast.success("PG Listed Successfully 🎉");
+    images.forEach((file) => {
+      formData.append("images", file);
+    });
 
-      navigate("/owner/dashboard");
+    await API.post("/pgs", formData);
 
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to add PG");
-    } finally {
-      setLoading(false);
-    }
-  };
+    toast.success("PG Created Successfully 🎉");
+  } catch (err) {
+    console.log(err);
+    toast.error("Upload failed ❌");
+  }
+};
 
   return (
   <div className="min-h-screen bg-gray-50 py-10 px-4">

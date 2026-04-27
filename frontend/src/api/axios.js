@@ -26,12 +26,12 @@ API.interceptors.response.use(
       error.response?.status === 401 &&
       !originalRequest._retry &&
       !originalRequest.url.includes("/auth/refresh") &&
-      !originalRequest.url.includes("/auth/me") // ✅ ADD THIS
+      !originalRequest.url.includes("/auth/me") //  ADD THIS
     ) {
       originalRequest._retry = true;
 
       try {
-        const { data } = await API.get("/auth/refresh");
+        const { data } = await API.post("/auth/refresh");
 
         localStorage.setItem("accessToken", data.accessToken);
 

@@ -1,14 +1,6 @@
-import multer from 'multer';
-import CloudinaryStorage from 'multer-storage-cloudinary';
-import cloudinary from '../config/cloudinary.js';
+import multer from "multer";
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'findpg',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-  },
-});
+const storage = multer.memoryStorage(); // 🔥 store in buffer
 
 const upload = multer({
   storage,

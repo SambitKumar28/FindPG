@@ -4,13 +4,55 @@ import cloudinary from "../config/cloudinary.js";
 
 // ================= CREATE PG =================
 export const createPG = asyncHandler(async (req, res) => {
-  const imageUrls = req.files?.map((file) => ({
-    public_id: file.filename,
-    url: file.path,
-  })) || [];
+  const {
+    title,
+    description,
+    city,
+    locality,
+    address,
+    rent,
+    securityDeposit,
+    genderPreference,
+    roomType,
+    amenities,
+  } = req.body;
+
+  let imageUrls = [];
+
+if (req.files && req.files.length > 0) {
+  for (const file of req.files) {
+    const uploadPromise = () =>
+      new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "findpg" },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        stream.end(file.buffer);
+      });
+
+    const uploaded = await uploadPromise();
+
+    imageUrls.push({
+      public_id: uploaded.public_id,
+      url: uploaded.secure_url,
+    });
+  }
+}
 
   const pg = await PG.create({
-    ...req.body,
+    title,
+    description,
+    city,
+    locality,
+    address,
+    rent,
+    securityDeposit,
+    genderPreference,
+    roomType,
+    amenities,
     images: imageUrls,
     owner: req.user._id,
   });
@@ -21,7 +63,6 @@ export const createPG = asyncHandler(async (req, res) => {
     pg,
   });
 });
-
 // ================= GET ALL PGs =================
 export const getAllPGs = asyncHandler(async (req, res) => {
   const {
