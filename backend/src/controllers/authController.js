@@ -27,22 +27,13 @@ const sendRefreshToken = (res, token) => {
 
 // ================= REGISTER =================
 export const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, confirmPassword, role  } = req.body;
-
-
-if (password !== confirmPassword) {
-  res.status(400);
-  throw new Error("Passwords do not match");
-}
-
+  const { name, email, password, role  } = req.body;
 
   const existingUser = await User.findOne({ email });
   if (existingUser) {
     res.status(400);
     throw new Error("User already exists");
   }
-
-  // const hashedPassword = await bcrypt.hash(password, 10);
 
   const user = await User.create({
     name,
@@ -69,21 +60,9 @@ export const loginUser = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ email }).select("+password");
 
-  if (!user) {
-    res.status(400);
-    throw new Error("Invalid email or password");
-  }
-
-  if (user.isBlocked) {
-    res.status(403);
-    throw new Error("User is blocked");
-  }
-
-  const isMatch = await user.matchPassword(password);
-
-  if (!isMatch) {
+  if (!user || !(await user.matchPassword(password))) {
     res.status(401);
-    throw new Error("Invalid email or password");
+    throw new Error("Invalid credentials");
   }
 
   const accessToken = generateAccessToken(user._id);
@@ -91,15 +70,10 @@ export const loginUser = asyncHandler(async (req, res) => {
 
   sendRefreshToken(res, refreshToken);
 
-  res.status(200).json({
+  res.json({
     success: true,
     accessToken,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    },
+    user,
   });
 });
 

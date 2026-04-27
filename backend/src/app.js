@@ -7,29 +7,29 @@ import rateLimit from "express-rate-limit";
 
 import authRoutes from "./routes/authRoutes.js";
 import pgRoutes from "./routes/pgRoutes.js";
-import bookingRoutes from "./routes/bookingRoutes.js";
-import favoriteRoutes from "./routes/favoriteRoutes.js";
-import adminRoutes from "./routes/adminRoutes.js";
 
 import { notFound, errorHandler } from "./middlewares/errorMiddleware.js";
 
 const app = express();
 
-//  Security Middleware
+//  TRUST PROXY (RENDER FIX)
+app.set("trust proxy", 1);
+
+// Security
 app.use(helmet());
 
-//  Rate Limiting (protect from abuse)
+// Rate limit
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 mins
-  max: 100, // limit each IP
+  windowMs: 15 * 60 * 1000,
+  max: 100,
 });
 app.use(limiter);
 
-//  Body Parsers
+// Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-//  Cookies
+// Cookies
 app.use(cookieParser());
 
 // Logging
@@ -37,53 +37,23 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
-//  CORS (dynamic)
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://findpg-woad.vercel.app",
-];
-
+//  CORS FIX (VERY IMPORTANT)
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // allow requests with no origin (like mobile apps / curl)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      } else {
-        return callback(new Error("Not allowed by CORS: " + origin));
-      }
-    },
+    origin: [
+      "http://localhost:5173",
+      "https://findpg-woad.vercel.app",
+    ],
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// app.options("*", cors());
-
-//  Health Check Route (VERY IMPORTANT)
-app.get("/api/health", (req, res) => {
-  res.status(200).json({ status: "OK" });
-});
-
-//  Root Route
-app.get("/", (req, res) => {
-  res.send("FindPG API Running");
-});
-
-//  Routes
+// Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/pgs", pgRoutes);
-app.use("/api/bookings", bookingRoutes);
-app.use("/api/favorites", favoriteRoutes);
-app.use("/api/admin", adminRoutes);
 
-//  Not Found
+// Not found + error
 app.use(notFound);
-
-//  Error Handler
 app.use(errorHandler);
 
 export default app;
