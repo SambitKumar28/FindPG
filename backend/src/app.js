@@ -40,7 +40,7 @@ if (process.env.NODE_ENV === "development") {
 //  CORS (dynamic)
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: "http://localhost:5173",
     credentials: true,
   })
 );

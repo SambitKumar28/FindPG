@@ -42,7 +42,7 @@ router.post(
 );
 
 //  Refresh Token (important for SaaS)
-router.post("/refresh", refreshToken);
+router.get("/refresh", refreshToken);
 
 //  Logout
 router.post("/logout", protect, logoutUser);

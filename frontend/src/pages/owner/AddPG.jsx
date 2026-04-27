@@ -29,34 +29,60 @@ const AddPG = () => {
 
   // Handle image upload
   const handleImageChange = (e) => {
-    setImages(...e.target.files);
-  };
+  setImages(Array.from(e.target.files));
+};
 
-  // Submit
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
   e.preventDefault();
 
   try {
+    setLoading(true);
+
     const formData = new FormData();
 
+    // Append fields
     Object.keys(form).forEach((key) => {
-      if (key !== "images" && key !== "amenities") {
+      if (key !== "amenities") {
         formData.append(key, form[key]);
       }
     });
 
-    formData.append("amenities", form.amenities.split(","));
+    // Amenities array
+    formData.append(
+      "amenities",
+      JSON.stringify(form.amenities.split(",").map(a => a.trim()))
+    );
 
+    // Images
     images.forEach((file) => {
       formData.append("images", file);
     });
 
-    await API.post("/pgs", formData);
+    //  API CALL INSIDE TRY
+    const res = await API.post("/pgs", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
 
     toast.success("PG Created Successfully 🎉");
+
+    // Redirect
+    navigate("/owner/dashboard");
+
   } catch (err) {
-    console.log(err);
-    toast.error("Upload failed ❌");
+    console.error("ERROR:", err);
+
+    if (err.response?.status === 401) {
+      toast.error("Session expired. Please login again 🔐");
+      localStorage.removeItem("accessToken");
+      navigate("/login");
+    } else {
+      toast.error(err.response?.data?.message || "Upload failed ❌");
+    }
+
+  } finally {
+    setLoading(false);
   }
 };
 
