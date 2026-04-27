@@ -40,21 +40,28 @@ if (process.env.NODE_ENV === "development") {
 //  CORS (dynamic)
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://findpg-woad.vercel.app", //  YOUR FRONTEND
+  "https://findpg-woad.vercel.app",
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
+      // allow requests with no origin (like mobile apps / curl)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
       } else {
-        callback(new Error("CORS not allowed: " + origin));
+        return callback(new Error("Not allowed by CORS: " + origin));
       }
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// app.options("*", cors());
 
 //  Health Check Route (VERY IMPORTANT)
 app.get("/api/health", (req, res) => {
