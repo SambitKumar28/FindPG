@@ -12,10 +12,11 @@ const OwnerDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const pgRes = await API.get("/pgs");
+     const pgRes = await API.get("/pgs/my-pgs");
+      console.log("PG API response:", pgRes.data);
       //   const bookingRes = await API.get("/bookings/owner");
 
-      setPgs(pgRes.data.pgs);
+      setPgs(pgRes.data.pgs || []);
       //   setBookings(bookingRes.data.bookings);
     } catch (err) {
       console.error(err);

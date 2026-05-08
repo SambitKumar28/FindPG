@@ -225,3 +225,14 @@ export const deletePG = asyncHandler(async (req, res) => {
     message: "PG deleted successfully",
   });
 });
+
+// ================= GET OWNER'S OWN PGs =================
+export const getMyPGs = asyncHandler(async (req, res) => {
+  const pgs = await PG.find({ owner: req.user._id, isDeleted: false })
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    pgs,
+  });
+});

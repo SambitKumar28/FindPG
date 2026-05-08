@@ -5,12 +5,15 @@ import {
   getPGById,
   updatePG,
   deletePG,
+  getMyPGs,
 } from "../controllers/pgController.js";
 
 import { protect, authorize } from "../middlewares/authMiddleware.js";
 import upload from "../middlewares/uploadMiddleware.js";
 
 const router = express.Router();
+
+router.get("/my-pgs", protect, authorize("owner", "admin"), getMyPGs);
 
 //  Public Routes
 router.get("/", getAllPGs);
