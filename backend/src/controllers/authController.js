@@ -20,14 +20,14 @@ const generateRefreshToken = (id) => {
 const sendRefreshToken = (res, token) => {
   res.cookie("refreshToken", token, {
   httpOnly: true,
-  secure: true, //  MUST for HTTPS
-  sameSite: "none", //  MUST for cross-origin
+  secure: process.env.NODE_ENV === "production", //  MUST for HTTPS
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", //  MUST for cross-origin
 });
 };
 
 // ================= REGISTER =================
 export const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, role  } = req.body;
+  const { name, email, password, role, phone } = req.body;
 
   const existingUser = await User.findOne({ email });
   if (existingUser) {
@@ -40,6 +40,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     email,
     password,
     role: role || "user",
+    phone: phone || "",
   });
 
   res.status(201).json({
@@ -50,6 +51,7 @@ export const registerUser = asyncHandler(async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      phone: user.phone,
     },
   });
 });

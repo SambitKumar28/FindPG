@@ -7,6 +7,9 @@ import rateLimit from "express-rate-limit";
 
 import authRoutes from "./routes/authRoutes.js";
 import pgRoutes from "./routes/pgRoutes.js";
+import bookingRoutes from "./routes/bookingRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";   
+import favoriteRoutes from "./routes/favoriteRoutes.js";
 
 import { notFound, errorHandler } from "./middlewares/errorMiddleware.js";
 
@@ -14,6 +17,17 @@ const app = express();
 
 //  TRUST PROXY (RENDER FIX)
 app.set("trust proxy", 1);
+
+//  CORS FIX (VERY IMPORTANT)
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://findpg-woad.vercel.app",
+    ],
+    credentials: true,
+  })
+);
 
 // Security
 app.use(helmet());
@@ -37,20 +51,14 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
-//  CORS FIX (VERY IMPORTANT)
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5173",
-      "https://findpg-woad.vercel.app",
-    ],
-    credentials: true,
-  })
-);
+
 
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/pgs", pgRoutes);
+app.use("/api/bookings", bookingRoutes);   
+app.use("/api/admin", adminRoutes);       
+app.use("/api/favorites", favoriteRoutes); 
 
 // Not found + error
 app.use(notFound);
