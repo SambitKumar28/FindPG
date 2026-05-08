@@ -11,7 +11,7 @@ export const errorHandler = (err, req, res, next) => {
 
     // for mongoose bad objectid error
 
-    if (err.name === 'CastError00') {
+    if (err.name === 'CastError') {
         statusCode = 404;
         message = 'Resource not found';
     }
@@ -21,7 +21,7 @@ export const errorHandler = (err, req, res, next) => {
         message = 'Duplicate field value entered';
     }
     res.status(statusCode).json({
-        sucess: false,
+        success: false,
         message,
         stack: process.env.NODE_ENV ==='production' ? null : err.stack,
     });

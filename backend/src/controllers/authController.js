@@ -1,20 +1,9 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import asyncHandler from "../middlewares/asyncHandler.js";
+import { generateAccessToken, generateRefreshToken } from "../utils/generateToken.js";
 import jwt from "jsonwebtoken";
 
-//  Generate Tokens
-const generateAccessToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: "1d",
-  });
-};
-
-const generateRefreshToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: "7d",
-  });
-};
 
 //  Send Refresh Token in Cookie
 const sendRefreshToken = (res, token) => {
@@ -73,10 +62,17 @@ export const loginUser = asyncHandler(async (req, res) => {
   sendRefreshToken(res, refreshToken);
 
   res.json({
-    success: true,
-    accessToken,
-    user,
-  });
+  success: true,
+  accessToken,
+  user: {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    phone: user.phone,
+    profileImage: user.profileImage,
+  },
+});
 });
 
 // ================= REFRESH TOKEN =================
