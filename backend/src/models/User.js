@@ -88,10 +88,9 @@ const userSchema = new mongoose.Schema(
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  this.password = await bcrypt.hash(this.password, 12); // increased from 10 → 12
-  next();
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
+  this.password = await bcrypt.hash(this.password, 12);
 });
 
 // ─── Instance Methods ─────────────────────────────────────────────────────────
