@@ -4,47 +4,47 @@ const pgSchema = new mongoose.Schema(
   {
     title: {
       type: String,
-      required: true,
+      required: [true, "Title is required"],
       trim: true,
-      minlength: 3,
+      minlength: [3, "Title must be at least 3 characters"],
+      maxlength: [100, "Title cannot exceed 100 characters"],
     },
 
     description: {
       type: String,
-      required: true,
-      minlength: 10,
+      required: [true, "Description is required"],
+      minlength: [10, "Description must be at least 10 characters"],
+      maxlength: [2000, "Description cannot exceed 2000 characters"],
     },
 
     city: {
       type: String,
-      required: true,
+      required: [true, "City is required"],
       trim: true,
-      index: true,
     },
 
     locality: {
       type: String,
-      required: true,
+      required: [true, "Locality is required"],
       trim: true,
-      index: true,
     },
 
     address: {
       type: String,
-      required: true,
+      required: [true, "Address is required"],
+      trim: true,
     },
 
     rent: {
       type: Number,
-      required: true,
-      min: 0,
-      index: true,
+      required: [true, "Rent is required"],
+      min: [0, "Rent cannot be negative"],
     },
 
     securityDeposit: {
       type: Number,
       default: 0,
-      min: 0,
+      min: [0, "Security deposit cannot be negative"],
     },
 
     genderPreference: {
@@ -56,7 +56,7 @@ const pgSchema = new mongoose.Schema(
     roomType: {
       type: String,
       enum: ["single", "double", "triple"],
-      required: true,
+      required: [true, "Room type is required"],
     },
 
     amenities: {
@@ -64,25 +64,17 @@ const pgSchema = new mongoose.Schema(
       default: [],
     },
 
-    //  FIXED IMAGE STRUCTURE
     images: [
       {
-        public_id: {
-          type: String,
-          required: true,
-        },
-        url: {
-          type: String,
-          required: true,
-        },
+        public_id: { type: String, required: true },
+        url: { type: String, required: true },
       },
     ],
 
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
-      index: true,
+      required: [true, "Owner is required"],
     },
 
     isAvailable: {
@@ -94,7 +86,6 @@ const pgSchema = new mongoose.Schema(
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",
-      index: true,
     },
 
     isDeleted: {
@@ -102,23 +93,26 @@ const pgSchema = new mongoose.Schema(
       default: false,
     },
 
-    //  Future-ready (optional but strong)
     rating: {
       type: Number,
       default: 0,
+      min: 0,
+      max: 5,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-//  Text search (very useful)
-pgSchema.index({
-  title: "text",
-  city: "text",
-  locality: "text",
-});
+// ─── Indexes ──────────────────────────────────────────────────────────────────
+// FIX: text index for full-text search (replaces separate field indexes on
+//      city/locality which would conflict with the text index)
+pgSchema.index({ title: "text", city: "text", locality: "text" });
+
+// Compound index for the most common public listing query
+pgSchema.index({ approvalStatus: 1, isDeleted: 1, rent: 1 });
+
+// Owner's own listings
+pgSchema.index({ owner: 1, isDeleted: 1, createdAt: -1 });
 
 const PG = mongoose.model("PG", pgSchema);
 

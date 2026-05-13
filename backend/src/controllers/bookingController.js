@@ -2,7 +2,17 @@ import Booking from "../models/Booking.js";
 import PG from "../models/PG.js";
 import asyncHandler from "../middlewares/asyncHandler.js";
 
-// ================= CREATE BOOKING =================
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const parsePagination = (query) => {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.min(50, Math.max(1, Number(query.limit) || 10));
+  const skip = (page - 1) * limit;
+  return { page, limit, skip };
+};
+
+// ─── CREATE BOOKING ───────────────────────────────────────────────────────────
+
 export const createBooking = asyncHandler(async (req, res) => {
   const { pgId, moveInDate, message } = req.body;
 
@@ -11,14 +21,26 @@ export const createBooking = asyncHandler(async (req, res) => {
     throw new Error("PG ID and move-in date are required");
   }
 
-  const pg = await PG.findById(pgId);
+  // Validate move-in date is in the future
+  const date = new Date(moveInDate);
+  if (isNaN(date.getTime()) || date <= new Date()) {
+    res.status(400);
+    throw new Error("Move-in date must be a valid future date");
+  }
+
+  const pg = await PG.findOne({
+    _id: pgId,
+    isDeleted: false,
+    approvalStatus: "approved",
+    isAvailable: true,
+  });
 
   if (!pg) {
     res.status(404);
-    throw new Error("PG not found");
+    throw new Error("PG not found or is not currently available for booking");
   }
 
-  // Prevent duplicate pending bookings
+  // Prevent duplicate pending bookings (index on { user, pg, status } makes this fast)
   const existingBooking = await Booking.findOne({
     user: req.user._id,
     pg: pgId,
@@ -26,81 +48,74 @@ export const createBooking = asyncHandler(async (req, res) => {
   });
 
   if (existingBooking) {
-    res.status(400);
-    throw new Error("You already have a pending booking");
+    res.status(409);
+    throw new Error("You already have a pending booking request for this PG");
   }
 
   const booking = await Booking.create({
     user: req.user._id,
     pg: pg._id,
     owner: pg.owner,
-    moveInDate,
+    moveInDate: date,
     message,
     status: "pending",
   });
 
   res.status(201).json({
     success: true,
-    message: "Booking created successfully",
+    message: "Booking request submitted successfully",
     booking,
   });
 });
 
-// ================= USER BOOKINGS =================
-export const getMyBookings = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+// ─── USER BOOKINGS ────────────────────────────────────────────────────────────
 
-  const skip = (page - 1) * limit;
+export const getMyBookings = asyncHandler(async (req, res) => {
+  const { page, limit, skip } = parsePagination(req.query);
 
   const [bookings, total] = await Promise.all([
     Booking.find({ user: req.user._id })
       .populate("pg", "title city locality rent images")
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(Number(limit)),
+      .limit(limit)
+      .lean(),
     Booking.countDocuments({ user: req.user._id }),
   ]);
 
   res.status(200).json({
     success: true,
-    pagination: {
-      total,
-      page: Number(page),
-      pages: Math.ceil(total / limit),
-    },
+    pagination: { total, page, pages: Math.ceil(total / limit) },
     data: bookings,
   });
 });
 
-// ================= OWNER BOOKINGS =================
-export const getOwnerBookings = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+// ─── OWNER BOOKINGS ───────────────────────────────────────────────────────────
 
-  const skip = (page - 1) * limit;
+export const getOwnerBookings = asyncHandler(async (req, res) => {
+  const { page, limit, skip } = parsePagination(req.query);
 
   const [bookings, total] = await Promise.all([
     Booking.find({ owner: req.user._id })
-      .populate("user", "name email")
+      .populate("user", "name email phone")
       .populate("pg", "title city locality rent")
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(Number(limit)),
+      .limit(limit)
+      .lean(),
     Booking.countDocuments({ owner: req.user._id }),
   ]);
 
   res.status(200).json({
     success: true,
-    pagination: {
-      total,
-      page: Number(page),
-      pages: Math.ceil(total / limit),
-    },
+    pagination: { total, page, pages: Math.ceil(total / limit) },
     data: bookings,
   });
 });
 
-// ================= APPROVE =================
-export const approveBooking = asyncHandler(async (req, res) => {
+// ─── Shared status-change helper ──────────────────────────────────────────────
+
+const changeBookingStatus = async (req, res, newStatus, authorizeCheck) => {
   const booking = await Booking.findById(req.params.id);
 
   if (!booking) {
@@ -108,91 +123,46 @@ export const approveBooking = asyncHandler(async (req, res) => {
     throw new Error("Booking not found");
   }
 
-  // Owner OR Admin
-  if (
-    booking.owner.toString() !== req.user._id.toString() &&
-    req.user.role !== "admin"
-  ) {
+  if (!authorizeCheck(booking, req.user)) {
     res.status(403);
-    throw new Error("Not authorized");
+    throw new Error("Not authorized to modify this booking");
   }
 
   if (booking.status !== "pending") {
     res.status(400);
-    throw new Error("Only pending bookings can be approved");
+    throw new Error(`Only pending bookings can be ${newStatus}`);
   }
 
-  booking.status = "approved";
+  booking.status = newStatus;
   await booking.save();
 
   res.status(200).json({
     success: true,
-    message: "Booking approved",
+    message: `Booking ${newStatus}`,
     booking,
   });
-});
+};
 
-// ================= REJECT =================
-export const rejectBooking = asyncHandler(async (req, res) => {
-  const booking = await Booking.findById(req.params.id);
+// ─── APPROVE ─────────────────────────────────────────────────────────────────
 
-  if (!booking) {
-    res.status(404);
-    throw new Error("Booking not found");
-  }
+export const approveBooking = asyncHandler(async (req, res) =>
+  changeBookingStatus(req, res, "approved", (b, user) =>
+    b.owner.toString() === user._id.toString() || user.role === "admin"
+  )
+);
 
-  if (
-    booking.owner.toString() !== req.user._id.toString() &&
-    req.user.role !== "admin"
-  ) {
-    res.status(403);
-    throw new Error("Not authorized");
-  }
+// ─── REJECT ──────────────────────────────────────────────────────────────────
 
-  if (booking.status !== "pending") {
-    res.status(400);
-    throw new Error("Only pending bookings can be rejected");
-  }
+export const rejectBooking = asyncHandler(async (req, res) =>
+  changeBookingStatus(req, res, "rejected", (b, user) =>
+    b.owner.toString() === user._id.toString() || user.role === "admin"
+  )
+);
 
-  booking.status = "rejected";
-  await booking.save();
+// ─── CANCEL ───────────────────────────────────────────────────────────────────
 
-  res.status(200).json({
-    success: true,
-    message: "Booking rejected",
-    booking,
-  });
-});
-
-// ================= CANCEL =================
-export const cancelBooking = asyncHandler(async (req, res) => {
-  const booking = await Booking.findById(req.params.id);
-
-  if (!booking) {
-    res.status(404);
-    throw new Error("Booking not found");
-  }
-
-  // Only user OR admin
-  if (
-    booking.user.toString() !== req.user._id.toString() &&
-    req.user.role !== "admin"
-  ) {
-    res.status(403);
-    throw new Error("Not authorized");
-  }
-
-  if (booking.status !== "pending") {
-    res.status(400);
-    throw new Error("Only pending bookings can be cancelled");
-  }
-
-  booking.status = "cancelled";
-  await booking.save();
-
-  res.status(200).json({
-    success: true,
-    message: "Booking cancelled",
-    booking,
-  });
-});
+export const cancelBooking = asyncHandler(async (req, res) =>
+  changeBookingStatus(req, res, "cancelled", (b, user) =>
+    b.user.toString() === user._id.toString() || user.role === "admin"
+  )
+);

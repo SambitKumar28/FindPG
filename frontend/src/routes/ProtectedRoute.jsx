@@ -1,14 +1,29 @@
-import { Navigate } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
-const ProtectedRoute = ({ children }) => {
+/**
+ * <ProtectedRoute roles={["admin"]} />
+ *
+ * - While session is being restored, renders nothing (avoids flash of login page).
+ * - Unauthenticated users are sent to /login with the intended URL saved in state
+ *   so they can be redirected back after logging in.
+ * - Authenticated users whose role is not in the allowed list get a 403 page.
+ */
+const ProtectedRoute = ({ roles }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return null; // or a full-page spinner
 
-  if (!user) return <Navigate to="/login"  replace />;
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
-  return children;
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  return <Outlet />;
 };
 
 export default ProtectedRoute;

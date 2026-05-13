@@ -6,48 +6,31 @@ import {
   loginUser,
   logoutUser,
   getCurrentUser,
-  refreshToken,
+  refreshAccessToken,
 } from "../controllers/authController.js";
 
 import { protect } from "../middlewares/authMiddleware.js";
-
-import {
-  registerSchema,
-  loginSchema,
-} from "../validations/authValidation.js";
+import { registerSchema, loginSchema } from "../validations/authValidation.js";
 import validate from "../middlewares/validateMiddleware.js";
 
 const router = express.Router();
 
-//  Rate limit for auth routes (prevent brute force)
+// Stricter rate limit for authentication endpoints (brute-force prevention)
 const authLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 mins
-  max: 20, // max 20 requests per IP
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many attempts. Please try again in 10 minutes.",
+  },
 });
 
-//  Register
-router.post(
-  "/register",
-  authLimiter,
-  validate(registerSchema),
-  registerUser
-);
-
-//  Login
-router.post(
-  "/login",
-  authLimiter,
-  validate(loginSchema),
-  loginUser
-);
-
-//  Refresh Token (important for SaaS)
-router.get("/refresh", refreshToken);
-
-//  Logout
+router.post("/register", authLimiter, validate(registerSchema), registerUser);
+router.post("/login", authLimiter, validate(loginSchema), loginUser);
+router.get("/refresh", refreshAccessToken);
 router.post("/logout", protect, logoutUser);
-
-//  Current User
 router.get("/me", protect, getCurrentUser);
 
 export default router;

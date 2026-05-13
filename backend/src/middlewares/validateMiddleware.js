@@ -1,3 +1,8 @@
+/**
+ * validate(schema) — Zod validation middleware.
+ * Validates req.body / req.query / req.params against the provided schema
+ * and returns a structured 400 response on failure.
+ */
 const validate = (schema) => (req, res, next) => {
   try {
     const result = schema.safeParse({
@@ -7,14 +12,13 @@ const validate = (schema) => (req, res, next) => {
     });
 
     if (!result.success) {
-      const errors = result.error.errors.map((err) => ({
-        field: err.path.join("."),
-        message: err.message,
-      }));
-
       return res.status(400).json({
         success: false,
-        errors,
+        message: "Validation failed",
+        errors: result.error.errors.map((err) => ({
+          field: err.path.slice(1).join("."), // strip leading "body"/"query"/"params"
+          message: err.message,
+        })),
       });
     }
 

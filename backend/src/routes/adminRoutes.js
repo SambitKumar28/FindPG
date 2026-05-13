@@ -1,4 +1,4 @@
-import express from 'express';
+import express from "express";
 import {
   getAllUsers,
   getAllPGs,
@@ -10,24 +10,28 @@ import {
   blockUser,
   unblockUser,
   getDashboardStats,
-} from '../controllers/adminController.js';
-import { protect } from '../middlewares/authMiddleware.js';
-import { adminOnly } from '../middlewares/adminMiddleware.js';
+} from "../controllers/adminController.js";
+import { protect, authorize } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.get('/users', protect, adminOnly, getAllUsers);
-router.get('/pgs', protect, adminOnly, getAllPGs);
-router.get('/bookings', protect, adminOnly, getAllBookings);
-router.get('/stats', protect, adminOnly, getDashboardStats);
+// FIX #18 — All admin routes use protect + authorize("admin").
+// adminMiddleware.js and roleMiddleware.js are deleted; this single pattern
+// replaces all three redundant middlewares.
+const adminOnly = [protect, authorize("admin")];
 
-router.delete('/users/:id', protect, adminOnly, deleteUser);
-router.delete('/pgs/:id', protect, adminOnly, deletePG);
+router.get("/stats", ...adminOnly, getDashboardStats);
 
-router.put('/pgs/:id/approve', protect, adminOnly, approvePG);
-router.put('/pgs/:id/reject', protect, adminOnly, rejectPG);
+router.get("/users", ...adminOnly, getAllUsers);
+router.delete("/users/:id", ...adminOnly, deleteUser);
+router.put("/users/:id/block", ...adminOnly, blockUser);
+router.put("/users/:id/unblock", ...adminOnly, unblockUser);
 
-router.put('/users/:id/block', protect, adminOnly, blockUser);
-router.put('/users/:id/unblock', protect, adminOnly, unblockUser);
+router.get("/pgs", ...adminOnly, getAllPGs);
+router.delete("/pgs/:id", ...adminOnly, deletePG);
+router.put("/pgs/:id/approve", ...adminOnly, approvePG);
+router.put("/pgs/:id/reject", ...adminOnly, rejectPG);
+
+router.get("/bookings", ...adminOnly, getAllBookings);
 
 export default router;

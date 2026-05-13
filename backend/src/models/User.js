@@ -5,31 +5,32 @@ const userSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: true,
+      required: [true, "Name is required"],
       trim: true,
-      minlength: 2,
+      minlength: [2, "Name must be at least 2 characters"],
+      maxlength: [50, "Name cannot exceed 50 characters"],
     },
 
     email: {
       type: String,
-      required: true,
+      required: [true, "Email is required"],
       unique: true,
       lowercase: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, "Please use a valid email"],
+      match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Please use a valid email"],
       index: true,
     },
 
     password: {
       type: String,
-      required: true,
-      minlength: 6,
+      required: [true, "Password is required"],
+      minlength: [6, "Password must be at least 6 characters"],
       select: false,
     },
 
     phone: {
       type: String,
-      match: [/^[0-9]{10}$/, "Invalid phone number"],
+      match: [/^[0-9]{10}$/, "Phone must be a 10-digit number"],
       default: "",
     },
 
@@ -47,9 +48,9 @@ const userSchema = new mongoose.Schema(
     city: {
       type: String,
       default: "",
+      trim: true,
     },
 
-    //  Favorites (keep only one)
     favorites: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -60,11 +61,24 @@ const userSchema = new mongoose.Schema(
     isBlocked: {
       type: Boolean,
       default: false,
+      index: true,
     },
 
     isDeleted: {
       type: Boolean,
       default: false,
+      index: true,
+    },
+
+    /**
+     * FIX #6 — Refresh token revocation via version counter.
+     * Incrementing this number (on logout or password change) invalidates
+     * ALL outstanding refresh tokens for the user without needing a blocklist.
+     */
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      select: false,
     },
   },
   {
@@ -72,15 +86,40 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-//  Hash password before saving
+// ─── Hooks ───────────────────────────────────────────────────────────────────
+
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  this.password = await bcrypt.hash(this.password, 10);
+  this.password = await bcrypt.hash(this.password, 12); // increased from 10 → 12
+  next();
 });
 
-//  Compare password method
+// ─── Instance Methods ─────────────────────────────────────────────────────────
+
 userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+  return bcrypt.compare(enteredPassword, this.password);
+};
+
+/** Invalidate all outstanding refresh tokens for this user. */
+userSchema.methods.invalidateTokens = async function () {
+  this.tokenVersion += 1;
+  await this.save({ validateBeforeSave: false });
+};
+
+// ─── Safe public projection ───────────────────────────────────────────────────
+
+userSchema.methods.toPublic = function () {
+  return {
+    id: this._id,
+    name: this.name,
+    email: this.email,
+    role: this.role,
+    phone: this.phone,
+    profileImage: this.profileImage,
+    city: this.city,
+    isBlocked: this.isBlocked,
+    createdAt: this.createdAt,
+  };
 };
 
 const User = mongoose.model("User", userSchema);

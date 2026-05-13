@@ -1,105 +1,78 @@
-import { createContext, useState, useEffect, useContext } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import API from "../api/axios";
+import { setAccessToken, clearAccessToken } from "../api/tokenStore";
 
-export const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // true until we know auth state
 
-  // ================= AUTO LOGIN =================
+  // ─── Silent refresh on mount ──────────────────────────────────────────────
+  // FIX #5 — No localStorage read. We rely on the httpOnly refresh-token
+  // cookie being sent automatically to /auth/refresh.
   useEffect(() => {
-    const loadUser = async () => {
-      const token = localStorage.getItem("accessToken");
-
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
+    const restoreSession = async () => {
       try {
-        const res = await API.get("/auth/me");
-        setUser(res.data.user);
-      } catch (err) {
-        console.log("Auto login failed");
+        const { data } = await API.get("/auth/refresh");
+        setAccessToken(data.accessToken);
+        setUser(data.user);
+      } catch {
+        // No active session — that's fine, stay logged out
+        clearAccessToken();
         setUser(null);
-        localStorage.removeItem("accessToken");
       } finally {
         setLoading(false);
       }
     };
 
-    loadUser();
+    restoreSession();
   }, []);
 
-  // ================= REGISTER =================
-  const register = async (formData) => {
-    try {
-      const res = await API.post("/auth/register", formData);
+  // ─── Register ─────────────────────────────────────────────────────────────
+  // FIX #20 — Single API call. The register endpoint now returns the access
+  // token directly, so we don't need a second /auth/login call.
+  const register = useCallback(async (formData) => {
+    const { data } = await API.post("/auth/register", formData);
+    setAccessToken(data.accessToken);
+    setUser(data.user);
+    return data;
+  }, []);
 
-      // optional: auto login after register
-      // better UX for SaaS
-      const loginRes = await API.post("/auth/login", {
-      email: formData.email,
-      password: formData.password,
-    });
+  // ─── Login ────────────────────────────────────────────────────────────────
+  const login = useCallback(async (credentials) => {
+    const { data } = await API.post("/auth/login", credentials);
+    setAccessToken(data.accessToken);
+    setUser(data.user);
+    return data;
+  }, []);
 
-    localStorage.setItem("accessToken", loginRes.data.accessToken);
-    setUser(loginRes.data.user);
-
-      return { success: true, message: res.data.message, user: loginRes.data.user };
-    } catch (err) {
-       const data = err.response?.data;
-       const message = data?.message || data?.error?.[0]?.message || "Registration failed";
-      return {
-        success: false,
-        message,
-      };
-    }
-  };
-
-  // ================= LOGIN =================
-  const login = async (credentials) => {
-    try {
-      const res = await API.post("/auth/login", credentials);
-
-      localStorage.setItem("accessToken", res.data.accessToken);
-      setUser(res.data.user);
-
-      return { success: true, user: res.data.user };
-    } catch (err) {
-      return {
-        success: false,
-        message: err.response?.data?.message || "Login failed",
-      };
-    }
-  };
-
-  // ================= LOGOUT =================
-  const logout = async () => {
+  // ─── Logout ───────────────────────────────────────────────────────────────
+  const logout = useCallback(async () => {
     try {
       await API.post("/auth/logout");
-    } catch (err) {
-      console.log("Logout API failed");
+    } catch {
+      // Even if the server call fails, clear local state
+    } finally {
+      clearAccessToken();
+      setUser(null);
     }
+  }, []);
 
-    localStorage.removeItem("accessToken");
-    setUser(null);
+  const value = {
+    user,
+    loading,
+    isAuthenticated: !!user,
+    register,
+    login,
+    logout,
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        register, 
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
+  return ctx;
+};

@@ -13,13 +13,12 @@ import upload from "../middlewares/uploadMiddleware.js";
 
 const router = express.Router();
 
-router.get("/my-pgs", protect, authorize("owner", "admin"), getMyPGs);
-
-//  Public Routes
+// Public
 router.get("/", getAllPGs);
+router.get("/my-pgs", protect, authorize("owner", "admin"), getMyPGs);
 router.get("/:id", getPGById);
 
-//  Protected Routes
+// Protected
 router.post(
   "/",
   protect,
@@ -36,11 +35,6 @@ router.put(
   updatePG
 );
 
-router.delete(
-  "/:id",
-  protect,
-  authorize("owner", "admin"),
-  deletePG
-);
+router.delete("/:id", protect, authorize("owner", "admin"), deletePG);
 
 export default router;

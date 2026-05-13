@@ -1,169 +1,123 @@
-import React, { useState } from "react";
-import { motion } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
-import { FcGoogle } from "react-icons/fc";
-import { FaFacebookF } from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
-import toast from "react-hot-toast";
+import { useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
-  const [showPassword, setShowPassword] = useState(false);
-
-  const [form, setForm] = useState({
-    email: "",
-    password: "",
-  });
-
-  const [loading, setLoading] = useState(false);
-
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Handle Input
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Redirect back to the page the user tried to visit before being sent to login
+  const from = location.state?.from?.pathname || "/";
+
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setError(""); // clear error on any input change
   };
 
-  // Handle Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
 
+    if (!form.email || !form.password) {
+      setError("Email and password are required.");
+      return;
+    }
+
+    setLoading(true);
     try {
-      setLoading(true);
-
-      const res = await login(form);
-
-      if (!res.success) {
-        return toast.error(res.message);
-      }
-
-      //  Success Toast
-      toast.success("Login successful");
-
-      //  Role-based redirect
-      const role = res.user.role;
-
-      if (role === "owner") {
-        navigate("/owner/dashboard");
-      } else {
-        navigate("/dashboard");
-      }
-
+      await login(form);
+      navigate(from, { replace: true });
     } catch (err) {
-      toast.error("Something went wrong");
+      setError(
+        err.response?.data?.message || "Login failed. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-16">
-      <div className="absolute top-0 left-0 w-72 h-72 bg-cyan-200 rounded-full blur-3xl opacity-40"></div>
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-200 rounded-full blur-3xl opacity-40"></div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-md p-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
+        <p className="text-sm text-gray-500 mb-6">
+          Sign in to your FindPG account
+        </p>
 
-      <motion.div
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7 }}
-        className="relative w-full max-w-6xl bg-white rounded-[40px] shadow-2xl overflow-hidden grid lg:grid-cols-2"
-      >
-        {/* Left Side */}
-        <div className="hidden lg:flex bg-linear-to-br from-cyan-600 via-blue-600 to-indigo-700 text-white p-14 flex-col justify-between">
+        {/* FIX #21 — Error displayed properly, no commented-out dead code */}
+        {error && (
+          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
-            <span className="inline-block bg-white/20 px-4 py-2 rounded-full text-sm mb-6">
-              Welcome Back
-            </span>
-
-            <h1 className="text-5xl font-bold leading-tight">
-              Find Your Perfect PG Stay Easily
-            </h1>
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Email address
+            </label>
+            <input
+              id="email"
+              type="email"          /* correct type */
+              name="email"
+              autoComplete="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="you@example.com"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
           </div>
-        </div>
 
-        {/* Right Side */}
-        <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
-          <div className="max-w-md mx-auto w-full">
-            <h2 className="text-4xl font-bold text-gray-900">Login Account</h2>
-
-            <form onSubmit={handleSubmit} className="mt-10 space-y-6">
-              {/* Email */}
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  name="email"
-                  type="email"
-                  value={form.email}
-                  onChange={handleChange}
-                  placeholder="Enter your email"
-                  className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-4 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
-                />
-              </div>
-
-              {/* Password */}
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-
-                <input
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  value={form.password}
-                  onChange={handleChange}
-                  placeholder="Enter your password"
-                  className="w-full border border-gray-200 rounded-2xl py-4 pl-12 pr-12 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2"
-                >
-                  {showPassword ? <EyeOff /> : <Eye />}
-                </button>
-              </div>
-
-              {/* Error */}
-              {/* {error && (
-                <p className="text-red-500 text-sm text-center">{error}</p>
-              )} */}
-
-              {/* Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-linear-to-r from-cyan-600 to-blue-700 text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2"
-              >
-                {loading ? "Logging in..." : "Login"}
-                <ArrowRight size={20} />
-              </button>
-            </form>
-
-            {/* Divider */}
-            <div className="flex items-center gap-4 my-8">
-              <div className="flex-1 h-px bg-gray-200"></div>
-              <span className="text-sm text-gray-400">OR</span>
-              <div className="flex-1 h-px bg-gray-200"></div>
-            </div>
-
-            {/* Social */}
-            <div className="grid grid-cols-2 gap-4">
-              <button className="border rounded-2xl py-3 flex items-center justify-center gap-2">
-                <FcGoogle /> Google
-              </button>
-              <button className="border rounded-2xl py-3 flex items-center justify-center gap-2">
-                <FaFacebookF /> Facebook
-              </button>
-            </div>
-
-            <p className="text-center mt-6">
-              Don’t have an account?{" "}
-              <Link to="/register" className="text-cyan-600">
-                Create Account
-              </Link>
-            </p>
+          <div>
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              value={form.password}
+              onChange={handleChange}
+              placeholder="••••••••"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
           </div>
-        </div>
-      </motion.div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg py-2.5 text-sm transition-colors"
+          >
+            {loading ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+
+        {/* FIX #23 — Social login buttons removed until OAuth is actually implemented */}
+
+        <p className="mt-6 text-center text-sm text-gray-500">
+          Don&apos;t have an account?{" "}
+          <Link
+            to="/register"
+            className="text-blue-600 hover:underline font-medium"
+          >
+            Create one
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };

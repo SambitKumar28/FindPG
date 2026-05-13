@@ -2,7 +2,41 @@ import PG from "../models/PG.js";
 import asyncHandler from "../middlewares/asyncHandler.js";
 import cloudinary from "../config/cloudinary.js";
 
-// ================= CREATE PG =================
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * FIX #14 — Uploads a single file buffer to Cloudinary.
+ * Called via Promise.all for parallel uploads instead of sequential await.
+ */
+const uploadToCloudinary = (buffer) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "findpg" },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve({ public_id: result.public_id, url: result.secure_url });
+      }
+    );
+    stream.end(buffer);
+  });
+
+/** Whitelist of fields an owner is allowed to update on their own PG listing. */
+const OWNER_UPDATABLE_FIELDS = [
+  "title",
+  "description",
+  "city",
+  "locality",
+  "address",
+  "rent",
+  "securityDeposit",
+  "genderPreference",
+  "roomType",
+  "amenities",
+  "isAvailable",
+];
+
+// ─── CREATE PG ───────────────────────────────────────────────────────────────
+
 export const createPG = asyncHandler(async (req, res) => {
   const {
     title,
@@ -17,30 +51,11 @@ export const createPG = asyncHandler(async (req, res) => {
     amenities,
   } = req.body;
 
-  let imageUrls = [];
-
-if (req.files && req.files.length > 0) {
-  for (const file of req.files) {
-    const uploadPromise = () =>
-      new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: "findpg" },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        );
-        stream.end(file.buffer);
-      });
-
-    const uploaded = await uploadPromise();
-
-    imageUrls.push({
-      public_id: uploaded.public_id,
-      url: uploaded.secure_url,
-    });
-  }
-}
+  // FIX #14 — Upload all images in parallel instead of sequentially
+  const imageUrls =
+    req.files?.length > 0
+      ? await Promise.all(req.files.map((f) => uploadToCloudinary(f.buffer)))
+      : [];
 
   const pg = await PG.create({
     title,
@@ -52,18 +67,20 @@ if (req.files && req.files.length > 0) {
     securityDeposit,
     genderPreference,
     roomType,
-    amenities,
+    amenities: Array.isArray(amenities) ? amenities : [],
     images: imageUrls,
     owner: req.user._id,
   });
 
   res.status(201).json({
     success: true,
-    message: "PG created successfully",
+    message: "PG listed successfully — pending admin approval",
     pg,
   });
 });
-// ================= GET ALL PGs =================
+
+// ─── GET ALL PGs (public) ─────────────────────────────────────────────────────
+
 export const getAllPGs = asyncHandler(async (req, res) => {
   const {
     page = 1,
@@ -76,18 +93,16 @@ export const getAllPGs = asyncHandler(async (req, res) => {
     sort,
   } = req.query;
 
-  const query = {};
+  const pageNum = Math.max(1, Number(page));
+  const limitNum = Math.min(50, Math.max(1, Number(limit))); // cap at 50 per page
 
-  //  Search
+  // FIX #10 — Only show approved, non-deleted listings on the public endpoint
+  const query = { isDeleted: false, approvalStatus: "approved" };
+
   if (keyword) {
-    query.$or = [
-      { city: { $regex: keyword, $options: "i" } },
-      { locality: { $regex: keyword, $options: "i" } },
-      { title: { $regex: keyword, $options: "i" } },
-    ];
+    query.$text = { $search: keyword }; // use the text index properly
   }
 
-  //  Filters
   if (genderPreference) query.genderPreference = genderPreference;
   if (roomType) query.roomType = roomType;
 
@@ -97,88 +112,89 @@ export const getAllPGs = asyncHandler(async (req, res) => {
     if (maxRent) query.rent.$lte = Number(maxRent);
   }
 
-  //  Sorting
   let sortOption = { createdAt: -1 };
   if (sort === "rentLowToHigh") sortOption = { rent: 1 };
-  if (sort === "rentHighToLow") sortOption = { rent: -1 };
+  else if (sort === "rentHighToLow") sortOption = { rent: -1 };
 
-  const skip = (page - 1) * limit;
+  const skip = (pageNum - 1) * limitNum;
 
   const [pgs, total] = await Promise.all([
     PG.find(query)
       .populate("owner", "name email")
       .sort(sortOption)
       .skip(skip)
-      .limit(Number(limit)),
+      .limit(limitNum)
+      .lean(),
     PG.countDocuments(query),
   ]);
 
   res.status(200).json({
     success: true,
     pagination: {
-      currentPage: Number(page),
-      totalPages: Math.ceil(total / limit),
+      currentPage: pageNum,
+      totalPages: Math.ceil(total / limitNum),
       total,
+      limit: limitNum,
     },
     data: pgs,
   });
 });
 
-// ================= GET SINGLE PG =================
+// ─── GET SINGLE PG ───────────────────────────────────────────────────────────
+
 export const getPGById = asyncHandler(async (req, res) => {
-  const pg = await PG.findById(req.params.id).populate(
-    "owner",
-    "name email"
-  );
+  const pg = await PG.findOne({
+    _id: req.params.id,
+    isDeleted: false,
+  })
+    .populate("owner", "name email phone")
+    .lean();
 
   if (!pg) {
     res.status(404);
     throw new Error("PG not found");
   }
 
-  res.status(200).json({
-    success: true,
-    pg,
-  });
+  res.status(200).json({ success: true, pg });
 });
 
-// ================= UPDATE PG =================
+// ─── UPDATE PG ───────────────────────────────────────────────────────────────
+
 export const updatePG = asyncHandler(async (req, res) => {
-  const pg = await PG.findById(req.params.id);
+  const pg = await PG.findOne({ _id: req.params.id, isDeleted: false });
 
   if (!pg) {
     res.status(404);
     throw new Error("PG not found");
   }
 
-  //  Owner OR Admin can update
   if (
     pg.owner.toString() !== req.user._id.toString() &&
     req.user.role !== "admin"
   ) {
     res.status(403);
-    throw new Error("Not authorized");
+    throw new Error("Not authorized to update this listing");
   }
 
-  //  Replace Images
-  if (req.files?.length > 0) {
-    try {
-      await Promise.all(
-        pg.images.map((img) =>
-          cloudinary.uploader.destroy(img.public_id)
-        )
-      );
-    } catch (err) {
-      console.error("Image delete failed:", err.message);
+  // FIX #3 — Whitelist allowed fields instead of Object.assign(pg, req.body)
+  OWNER_UPDATABLE_FIELDS.forEach((field) => {
+    if (req.body[field] !== undefined) {
+      pg[field] = req.body[field];
     }
+  });
 
-    pg.images = req.files.map((file) => ({
-      public_id: file.filename,
-      url: file.path,
-    }));
+  // FIX #8 — Replace images using buffer (memoryStorage), parallel upload
+  if (req.files?.length > 0) {
+    // Delete old images from Cloudinary first
+    await Promise.allSettled(
+      pg.images.map((img) => cloudinary.uploader.destroy(img.public_id))
+    );
+
+    // FIX #14 — Upload new images in parallel
+    pg.images = await Promise.all(
+      req.files.map((f) => uploadToCloudinary(f.buffer))
+    );
   }
-
-  Object.assign(pg, req.body);
 
   const updatedPG = await pg.save();
 
@@ -189,50 +205,64 @@ export const updatePG = asyncHandler(async (req, res) => {
   });
 });
 
-// ================= DELETE PG =================
+// ─── DELETE PG ───────────────────────────────────────────────────────────────
+
 export const deletePG = asyncHandler(async (req, res) => {
-  const pg = await PG.findById(req.params.id);
+  const pg = await PG.findOne({ _id: req.params.id, isDeleted: false });
 
   if (!pg) {
     res.status(404);
     throw new Error("PG not found");
   }
 
-  //  Owner OR Admin
   if (
     pg.owner.toString() !== req.user._id.toString() &&
     req.user.role !== "admin"
   ) {
     res.status(403);
-    throw new Error("Not authorized");
+    throw new Error("Not authorized to delete this listing");
   }
 
-  //  Delete Images from Cloudinary
-  try {
-    await Promise.all(
-      pg.images.map((img) =>
-        cloudinary.uploader.destroy(img.public_id)
-      )
-    );
-  } catch (err) {
-    console.error("Cloudinary delete failed:", err.message);
-  }
+  // Delete Cloudinary images concurrently (don't block on failure)
+  await Promise.allSettled(
+    pg.images.map((img) => cloudinary.uploader.destroy(img.public_id))
+  );
 
-  await pg.deleteOne();
+  // Soft delete
+  pg.isDeleted = true;
+  await pg.save();
 
   res.status(200).json({
     success: true,
-    message: "PG deleted successfully",
+    message: "PG listing deleted successfully",
   });
 });
 
-// ================= GET OWNER'S OWN PGs =================
+// ─── GET OWNER'S OWN PGs ─────────────────────────────────────────────────────
+
 export const getMyPGs = asyncHandler(async (req, res) => {
-  const pgs = await PG.find({ owner: req.user._id, isDeleted: false })
-    .sort({ createdAt: -1 });
+  const { page = 1, limit = 10 } = req.query;
+
+  const pageNum = Math.max(1, Number(page));
+  const limitNum = Math.min(50, Math.max(1, Number(limit)));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [pgs, total] = await Promise.all([
+    PG.find({ owner: req.user._id, isDeleted: false })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean(),
+    PG.countDocuments({ owner: req.user._id, isDeleted: false }),
+  ]);
 
   res.status(200).json({
     success: true,
-    pgs,
+    pagination: {
+      currentPage: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+      total,
+    },
+    data: pgs,
   });
 });

@@ -1,7 +1,23 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../api/axios";
-import toast from "react-hot-toast";
+
+const AMENITY_OPTIONS = [
+  "WiFi", "AC", "Parking", "Laundry", "Meals", "Power Backup",
+  "CCTV", "Security Guard", "Gym", "TV",
+];
+
+const GENDER_OPTIONS = [
+  { value: "male", label: "Male only" },
+  { value: "female", label: "Female only" },
+  { value: "unisex", label: "Unisex" },
+];
+
+const ROOM_TYPES = ["single", "double", "triple"];
+
+const MAX_IMAGES = 5;
+const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 const AddPG = () => {
   const navigate = useNavigate();
@@ -16,252 +32,412 @@ const AddPG = () => {
     securityDeposit: "",
     genderPreference: "unisex",
     roomType: "single",
-    amenities: "",
+    amenities: [],
   });
 
-  const [images, setImages] = useState([]);
+  const [images, setImages] = useState([]);       // File objects
+  const [previews, setPreviews] = useState([]);    // data-URL strings
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Handle input
+  // ─── Handlers ──────────────────────────────────────────────────────────────
+
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm((p) => ({ ...p, [name]: value }));
+    if (errors[name]) setErrors((p) => ({ ...p, [name]: "" }));
   };
 
-  // Handle image upload
+  const toggleAmenity = (amenity) => {
+    setForm((p) => ({
+      ...p,
+      amenities: p.amenities.includes(amenity)
+        ? p.amenities.filter((a) => a !== amenity)
+        : [...p.amenities, amenity],
+    }));
+  };
+
+  // FIX #24 — Validate file type and size before accepting images
   const handleImageChange = (e) => {
-  setImages(Array.from(e.target.files));
-};
+    const files = Array.from(e.target.files);
+    const combined = [...images, ...files];
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  try {
-    setLoading(true);
-
-    const formData = new FormData();
-
-    // Append fields
-    Object.keys(form).forEach((key) => {
-      if (key !== "amenities") {
-        formData.append(key, form[key]);
-      }
-    });
-
-    // Amenities array
-    formData.append(
-      "amenities",
-      JSON.stringify(form.amenities.split(",").map(a => a.trim()))
-    );
-
-    // Images
-    images.forEach((file) => {
-      formData.append("images", file);
-    });
-
-    //  API CALL INSIDE TRY
-    const res = await API.post("/pgs", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-
-    toast.success("PG Created Successfully 🎉");
-
-    // Redirect
-    navigate("/owner/dashboard");
-
-  } catch (err) {
-    console.error("ERROR:", err);
-
-    if (err.response?.status === 401) {
-      toast.error("Session expired. Please login again 🔐");
-      localStorage.removeItem("accessToken");
-      navigate("/login");
-    } else {
-      toast.error(err.response?.data?.message || "Upload failed ❌");
+    const typeErrors = files.filter((f) => !ALLOWED_TYPES.includes(f.type));
+    if (typeErrors.length > 0) {
+      setErrors((p) => ({
+        ...p,
+        images: "Only JPEG, PNG, and WebP images are allowed.",
+      }));
+      e.target.value = "";
+      return;
     }
 
-  } finally {
-    setLoading(false);
-  }
-};
+    const sizeErrors = files.filter((f) => f.size > MAX_FILE_SIZE);
+    if (sizeErrors.length > 0) {
+      setErrors((p) => ({
+        ...p,
+        images: "Each image must be under 5 MB.",
+      }));
+      e.target.value = "";
+      return;
+    }
+
+    if (combined.length > MAX_IMAGES) {
+      setErrors((p) => ({
+        ...p,
+        images: `You can upload at most ${MAX_IMAGES} images.`,
+      }));
+      e.target.value = "";
+      return;
+    }
+
+    setErrors((p) => ({ ...p, images: "" }));
+    setImages(combined);
+
+    // Build preview URLs
+    Promise.all(
+      files.map(
+        (file) =>
+          new Promise((res) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => res(ev.target.result);
+            reader.readAsDataURL(file);
+          })
+      )
+    ).then((urls) => setPreviews((p) => [...p, ...urls]));
+
+    e.target.value = "";
+  };
+
+  const removeImage = (index) => {
+    setImages((p) => p.filter((_, i) => i !== index));
+    setPreviews((p) => p.filter((_, i) => i !== index));
+  };
+
+  // ─── Validation ────────────────────────────────────────────────────────────
+
+  const validate = () => {
+    const errs = {};
+    if (!form.title.trim()) errs.title = "Title is required";
+    if (!form.description.trim()) errs.description = "Description is required";
+    if (!form.city.trim()) errs.city = "City is required";
+    if (!form.locality.trim()) errs.locality = "Locality is required";
+    if (!form.address.trim()) errs.address = "Address is required";
+    if (!form.rent || Number(form.rent) <= 0) errs.rent = "Valid rent amount is required";
+    // FIX #24 — Must have at least one image
+    if (images.length === 0) errs.images = "Please upload at least one image.";
+    return errs;
+  };
+
+  // ─── Submit ────────────────────────────────────────────────────────────────
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitError("");
+
+    const errs = validate();
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      // Scroll to first error
+      document.querySelector("[data-error]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    const formData = new FormData();
+    Object.entries(form).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach((v) => formData.append(key, v));
+      } else {
+        formData.append(key, value);
+      }
+    });
+    images.forEach((img) => formData.append("images", img));
+
+    setLoading(true);
+    try {
+      await API.post("/pgs", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      navigate("/owner/my-pgs", {
+        state: { toast: "PG listed successfully — pending admin approval." },
+      });
+    } catch (err) {
+      const serverErrors = err.response?.data?.errors;
+      if (serverErrors?.length > 0) {
+        const mapped = {};
+        serverErrors.forEach((e) => {
+          if (e.field) mapped[e.field] = e.message;
+        });
+        setErrors(mapped);
+      } else {
+        setSubmitError(
+          err.response?.data?.message || "Failed to submit listing. Please try again."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-  <div className="min-h-screen bg-gray-50 py-10 px-4">
-    <div className="max-w-5xl mx-auto bg-white rounded-3xl shadow-lg p-8">
+    <div className="max-w-3xl mx-auto px-4 py-10">
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">List your PG</h1>
+      <p className="text-sm text-gray-500 mb-8">
+        Your listing will be reviewed and published within 24 hours.
+      </p>
 
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Add Your PG Listing
-        </h1>
-        <p className="text-gray-500 mt-2">
-          Fill in the details to list your property on FindPG
-        </p>
-      </div>
+      {submitError && (
+        <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          {submitError}
+        </div>
+      )}
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-
-        {/* Basic Info */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Title
-            </label>
+      <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        {/* Basic info */}
+        <Section title="Basic information">
+          <Field label="Listing title" error={errors.title}>
             <input
+              type="text"
               name="title"
+              value={form.title}
               onChange={handleChange}
-              placeholder="e.g. Luxury PG near IT Park"
-              className="w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-              required
+              placeholder="e.g. Spacious PG near Koramangala Metro"
+              className={inputClass(errors.title)}
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Rent (₹)
-            </label>
-            <input
-              type="number"
-              name="rent"
+          <Field label="Description" error={errors.description}>
+            <textarea
+              name="description"
+              value={form.description}
               onChange={handleChange}
-              placeholder="e.g. 8000"
-              className="w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-              required
+              rows={4}
+              placeholder="Describe the PG — rules, nearby landmarks, included services…"
+              className={inputClass(errors.description)}
             />
-          </div>
-        </div>
-
-        {/* Description */}
-        <div>
-          <label className="block text-sm font-semibold mb-2">
-            Description
-          </label>
-          <textarea
-            name="description"
-            onChange={handleChange}
-            rows={4}
-            placeholder="Describe your PG..."
-            className="w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-            required
-          />
-        </div>
+          </Field>
+        </Section>
 
         {/* Location */}
-        <div className="grid md:grid-cols-3 gap-6">
-          <input
-            name="city"
-            onChange={handleChange}
-            placeholder="City"
-            className="border rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-            required
-          />
-          <input
-            name="locality"
-            onChange={handleChange}
-            placeholder="Locality"
-            className="border rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-            required
-          />
-          <input
-            name="address"
-            onChange={handleChange}
-            placeholder="Full Address"
-            className="border rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-            required
-          />
-        </div>
+        <Section title="Location">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="City" error={errors.city}>
+              <input
+                type="text"
+                name="city"
+                value={form.city}
+                onChange={handleChange}
+                placeholder="Bengaluru"
+                className={inputClass(errors.city)}
+              />
+            </Field>
+
+            <Field label="Locality" error={errors.locality}>
+              <input
+                type="text"
+                name="locality"
+                value={form.locality}
+                onChange={handleChange}
+                placeholder="Koramangala"
+                className={inputClass(errors.locality)}
+              />
+            </Field>
+          </div>
+
+          <Field label="Full address" error={errors.address}>
+            <input
+              type="text"
+              name="address"
+              value={form.address}
+              onChange={handleChange}
+              placeholder="Street / building name"
+              className={inputClass(errors.address)}
+            />
+          </Field>
+        </Section>
 
         {/* Pricing */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <input
-            type="number"
-            name="securityDeposit"
-            onChange={handleChange}
-            placeholder="Security Deposit"
-            className="border rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-          />
+        <Section title="Pricing">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Monthly rent (₹)" error={errors.rent}>
+              <input
+                type="number"
+                name="rent"
+                value={form.rent}
+                onChange={handleChange}
+                placeholder="8000"
+                min={0}
+                className={inputClass(errors.rent)}
+              />
+            </Field>
 
-          <input
-            name="amenities"
-            onChange={handleChange}
-            placeholder="Amenities (WiFi, AC, Food...)"
-            className="border rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-          />
-        </div>
+            <Field label="Security deposit (₹)" error={errors.securityDeposit}>
+              <input
+                type="number"
+                name="securityDeposit"
+                value={form.securityDeposit}
+                onChange={handleChange}
+                placeholder="16000"
+                min={0}
+                className={inputClass(errors.securityDeposit)}
+              />
+            </Field>
+          </div>
+        </Section>
 
-        {/* Options */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Gender Preference
-            </label>
-            <select
-              name="genderPreference"
-              onChange={handleChange}
-              className="w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500"
+        {/* Room details */}
+        <Section title="Room details">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Gender preference" error={errors.genderPreference}>
+              <select
+                name="genderPreference"
+                value={form.genderPreference}
+                onChange={handleChange}
+                className={inputClass(errors.genderPreference)}
+              >
+                {GENDER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Room type" error={errors.roomType}>
+              <select
+                name="roomType"
+                value={form.roomType}
+                onChange={handleChange}
+                className={inputClass(errors.roomType)}
+              >
+                {ROOM_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)} sharing
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </Section>
+
+        {/* Amenities */}
+        <Section title="Amenities">
+          <div className="flex flex-wrap gap-2">
+            {AMENITY_OPTIONS.map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => toggleAmenity(a)}
+                className={[
+                  "px-3 py-1.5 rounded-full text-sm border transition-colors",
+                  form.amenities.includes(a)
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:border-blue-400",
+                ].join(" ")}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </Section>
+
+        {/* Images — FIX #24 */}
+        <Section title="Photos">
+          <p className="text-xs text-gray-500 mb-3">
+            Upload 1–{MAX_IMAGES} photos (JPEG / PNG / WebP, max 5 MB each).
+            At least one photo is required.
+          </p>
+
+          {/* Previews */}
+          {previews.length > 0 && (
+            <div className="flex flex-wrap gap-3 mb-3">
+              {previews.map((src, i) => (
+                <div key={i} className="relative w-24 h-24">
+                  <img
+                    src={src}
+                    alt={`preview-${i}`}
+                    className="w-full h-full object-cover rounded-lg border"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs leading-none"
+                    aria-label="Remove image"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {images.length < MAX_IMAGES && (
+            <label
+              data-error={errors.images ? true : undefined}
+              className={[
+                "flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition-colors",
+                errors.images
+                  ? "border-red-400 bg-red-50"
+                  : "border-gray-300 hover:border-blue-400 bg-gray-50",
+              ].join(" ")}
             >
-              <option value="unisex">Unisex</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Room Type
+              <span className="text-2xl mb-1">📷</span>
+              <span className="text-sm text-gray-500">
+                Click to add photos ({images.length}/{MAX_IMAGES})
+              </span>
+              <input
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                multiple
+                onChange={handleImageChange}
+                className="hidden"
+              />
             </label>
-            <select
-              name="roomType"
-              onChange={handleChange}
-              className="w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500"
-            >
-              <option value="single">Single</option>
-              <option value="double">Double</option>
-              <option value="triple">Triple</option>
-            </select>
-          </div>
-        </div>
+          )}
 
-        {/* Image Upload */}
-        <div>
-          <label className="block text-sm font-semibold mb-3">
-            Upload Images
-          </label>
+          {errors.images && (
+            <p className="mt-1 text-xs text-red-600">{errors.images}</p>
+          )}
+        </Section>
 
-          <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-cyan-500 transition">
-            <input
-              type="file"
-              multiple
-              onChange={handleImageChange}
-              className="hidden"
-              id="fileUpload"
-            />
-
-            <label htmlFor="fileUpload" className="cursor-pointer">
-              <p className="text-gray-500">
-                Click to upload images or drag & drop
-              </p>
-              <p className="text-sm text-gray-400 mt-1">
-                PNG, JPG up to 5 images
-              </p>
-            </label>
-          </div>
-        </div>
-
-        {/* Submit */}
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-linear-to-r from-cyan-600 to-blue-600 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition"
-          >
-            {loading ? "Publishing..." : "Publish PG"}
-          </button>
-        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-xl py-3 text-sm transition-colors"
+        >
+          {loading ? "Submitting…" : "Submit listing for review"}
+        </button>
       </form>
     </div>
+  );
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const Section = ({ title, children }) => (
+  <div className="bg-white rounded-xl border border-gray-200 p-6">
+    <h2 className="text-base font-semibold text-gray-800 mb-4">{title}</h2>
+    <div className="space-y-4">{children}</div>
   </div>
-)};
+);
+
+const inputClass = (hasError) =>
+  [
+    "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-transparent",
+    hasError
+      ? "border-red-400 focus:ring-red-400"
+      : "border-gray-300 focus:ring-blue-500",
+  ].join(" ");
+
+const Field = ({ label, error, children }) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      {label}
+    </label>
+    {children}
+    {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+  </div>
+);
 
 export default AddPG;

@@ -1,27 +1,15 @@
-import React, { useState } from "react";
-import { motion } from "framer-motion";
-import {
-  User,
-  Mail,
-  Phone,
-  Lock,
-  Eye,
-  EyeOff,
-  ArrowRight,
-  Building2,
-  Users,
-} from "lucide-react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FcGoogle } from "react-icons/fc";
-import { FaFacebookF } from "react-icons/fa";
-import { useAuth } from "../hooks/useAuth";
-import toast from "react-hot-toast";
+import { useAuth } from "../context/AuthContext";
 
+const ROLES = [
+  { value: "user", label: "Tenant — I'm looking for a PG" },
+  { value: "owner", label: "Owner — I want to list my PG" },
+];
 
 const Register = () => {
-  const [selectedRole, setSelectedRole] = useState("user");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { register } = useAuth();
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     name: "",
@@ -29,216 +17,228 @@ const Register = () => {
     phone: "",
     password: "",
     confirmPassword: "",
+    role: "user",
   });
-
+  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const  { register } = useAuth();
-  const navigate = useNavigate();
-
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    // Clear field-level error as user types
+    if (fieldErrors[name]) {
+      setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+    setError("");
+  };
+
+  const validate = () => {
+    const errs = {};
+    if (!form.name.trim()) errs.name = "Name is required";
+    if (!form.email.trim()) errs.email = "Email is required";
+    if (!form.password) errs.password = "Password is required";
+    else if (form.password.length < 6)
+      errs.password = "Password must be at least 6 characters";
+    if (form.password !== form.confirmPassword)
+      errs.confirmPassword = "Passwords do not match";
+    return errs;
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
+    setError("");
 
-  if (form.password !== form.confirmPassword) {
-    return toast.error("Passwords do not match");
-  }
+    const errs = validate();
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      return;
+    }
 
-  try {
     setLoading(true);
+    try {
+      // FIX #20 — single API call; register endpoint now returns the access
+      // token directly, no second /auth/login call needed
+      await register({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        password: form.password,
+        confirmPassword: form.confirmPassword,
+        role: form.role,
+      });
 
-    const res = await register({
-      ...form,
-      role: selectedRole,
-    });
-
-    //  Handle failure
-    if (!res.success) {
-      return toast.error(res.message);
+      navigate(form.role === "owner" ? "/owner/dashboard" : "/", {
+        replace: true,
+      });
+    } catch (err) {
+      // Surface server-side validation errors (Zod field errors)
+      const serverErrors = err.response?.data?.errors;
+      if (serverErrors?.length > 0) {
+        const mapped = {};
+        serverErrors.forEach((e) => {
+          if (e.field) mapped[e.field] = e.message;
+        });
+        setFieldErrors(mapped);
+      } else {
+        setError(
+          err.response?.data?.message || "Registration failed. Please try again."
+        );
+      }
+    } finally {
+      setLoading(false);
     }
-
-    //  Success
-    toast.success("Registration successful");
-
-    //  Role-based redirect (auto-login)
-    const role = res.user.role;
-
-    if (role === "owner") {
-      navigate("/owner/dashboard");
-    } else {
-      navigate("/dashboard");
-    }
-
-  } catch (err) {
-    toast.error("Something went wrong");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-16 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-72 h-72 bg-cyan-200 rounded-full blur-3xl opacity-40"></div>
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-200 rounded-full blur-3xl opacity-40"></div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-md p-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">
+          Create your account
+        </h1>
+        <p className="text-sm text-gray-500 mb-6">
+          Find your perfect paying guest accommodation
+        </p>
 
-      <motion.div
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7 }}
-        className="relative w-full max-w-6xl bg-white rounded-[40px] shadow-2xl overflow-hidden grid lg:grid-cols-2"
-      >
-        {/* Left Section */}
-        <div className="hidden lg:flex bg-linear-to-br from-cyan-600 via-blue-600 to-indigo-700 text-white p-14 flex-col justify-between">
-          <div>
-            <span className="inline-block bg-white/20 px-4 py-2 rounded-full text-sm mb-6">
-              Join FindPG
-            </span>
-
-            <h1 className="text-5xl font-bold leading-tight">
-              Create Your Account & Start Your Journey
-            </h1>
-
-            <p className="mt-6 text-cyan-100 text-lg">
-              Join FindPG and connect with the right people faster.
-            </p>
+        {/* FIX #21 — Actual error display, no commented-out blocks */}
+        {error && (
+          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            {error}
           </div>
-        </div>
+        )}
 
-        {/* Right Section */}
-        <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
-          <div className="max-w-md mx-auto w-full">
-            <h2 className="text-4xl font-bold text-gray-900">
-              Create Account
-            </h2>
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          {/* Name */}
+          <Field label="Full name" error={fieldErrors.name}>
+            <input
+              id="name"
+              type="text"
+              name="name"
+              autoComplete="name"
+              value={form.name}
+              onChange={handleChange}
+              placeholder="Ravi Kumar"
+              className={inputClass(fieldErrors.name)}
+            />
+          </Field>
 
-            {/* Role Selection */}
-            <div className="grid grid-cols-2 gap-4 mt-8 mb-8">
-              <button
-                type="button"
-                onClick={() => setSelectedRole("user")}
-                className={`p-5 rounded-3xl border ${
-                  selectedRole === "user"
-                    ? "border-cyan-600 bg-cyan-50"
-                    : "border-gray-200"
-                }`}
-              >
-                <Users /> User
-              </button>
+          {/* Email — FIX #11: type="email" */}
+          <Field label="Email address" error={fieldErrors.email}>
+            <input
+              id="email"
+              type="email"
+              name="email"
+              autoComplete="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="ravi@example.com"
+              className={inputClass(fieldErrors.email)}
+            />
+          </Field>
 
-              <button
-                type="button"
-                onClick={() => setSelectedRole("owner")}
-                className={`p-5 rounded-3xl border ${
-                  selectedRole === "owner"
-                    ? "border-cyan-600 bg-cyan-50"
-                    : "border-gray-200"
-                }`}
-              >
-                <Building2 /> Owner
-              </button>
-            </div>
+          {/* Phone */}
+          <Field label="Phone number (optional)" error={fieldErrors.phone}>
+            <input
+              id="phone"
+              type="tel"
+              name="phone"
+              autoComplete="tel"
+              value={form.phone}
+              onChange={handleChange}
+              placeholder="10-digit mobile number"
+              maxLength={10}
+              className={inputClass(fieldErrors.phone)}
+            />
+          </Field>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Name */}
-              <input
-                name="name"
-                value={form.name}
-                onChange={handleChange}
-                placeholder="Full Name"
-                className="w-full border p-4 rounded-2xl"
-              />
+          {/* Role */}
+          <Field label="I am a…" error={fieldErrors.role}>
+            <select
+              id="role"
+              name="role"
+              value={form.role}
+              onChange={handleChange}
+              className={inputClass(fieldErrors.role)}
+            >
+              {ROLES.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-              {/* Email */}
-              <input
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder="Email"
-                className="w-full border p-4 rounded-2xl"
-              />
+          {/* Password */}
+          <Field label="Password" error={fieldErrors.password}>
+            <input
+              id="password"
+              type="password"
+              name="password"
+              autoComplete="new-password"
+              value={form.password}
+              onChange={handleChange}
+              placeholder="At least 6 characters"
+              className={inputClass(fieldErrors.password)}
+            />
+          </Field>
 
-              {/* Phone */}
-              <input
-                name="phone"
-                value={form.phone}
-                onChange={handleChange}
-                placeholder="Phone"
-                className="w-full border p-4 rounded-2xl"
-              />
+          {/* Confirm password */}
+          <Field label="Confirm password" error={fieldErrors.confirmPassword}>
+            <input
+              id="confirmPassword"
+              type="password"
+              name="confirmPassword"
+              autoComplete="new-password"
+              value={form.confirmPassword}
+              onChange={handleChange}
+              placeholder="Re-enter your password"
+              className={inputClass(fieldErrors.confirmPassword)}
+            />
+          </Field>
 
-              {/* Password */}
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={form.password}
-                  onChange={handleChange}
-                  placeholder="Password"
-                  className="w-full border p-4 rounded-2xl"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-4"
-                >
-                  {showPassword ? <EyeOff /> : <Eye />}
-                </button>
-              </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg py-2.5 text-sm transition-colors"
+          >
+            {loading ? "Creating account…" : "Create account"}
+          </button>
+        </form>
 
-              {/* Confirm Password */}
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  name="confirmPassword"
-                  value={form.confirmPassword}
-                  onChange={handleChange}
-                  placeholder="Confirm Password"
-                  className="w-full border p-4 rounded-2xl"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowConfirmPassword(!showConfirmPassword)
-                  }
-                  className="absolute right-4 top-4"
-                >
-                  {showConfirmPassword ? <EyeOff /> : <Eye />}
-                </button>
-              </div>
+        {/* FIX #23 — Social login buttons removed until OAuth is implemented */}
 
-              {/* Error */}
-              {/* {error && (
-                <p className="text-red-500 text-sm text-center">
-                  {error}
-                </p>
-              )} */}
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-cyan-600 text-white py-4 rounded-2xl"
-              >
-                {loading
-                  ? "Creating..."
-                  : `Create ${selectedRole} Account`}
-              </button>
-            </form>
-
-            <p className="text-center mt-6">
-              Already have an account?{" "}
-              <Link to="/login" className="text-cyan-600">
-                Login
-              </Link>
-            </p>
-          </div>
-        </div>
-      </motion.div>
+        <p className="mt-6 text-center text-sm text-gray-500">
+          Already have an account?{" "}
+          <Link
+            to="/login"
+            className="text-blue-600 hover:underline font-medium"
+          >
+            Sign in
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const inputClass = (hasError) =>
+  [
+    "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-transparent",
+    hasError
+      ? "border-red-400 focus:ring-red-400"
+      : "border-gray-300 focus:ring-blue-500",
+  ].join(" ");
+
+const Field = ({ label, error, children }) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      {label}
+    </label>
+    {children}
+    {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+  </div>
+);
 
 export default Register;

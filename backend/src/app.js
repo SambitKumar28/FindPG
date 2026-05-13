@@ -1,66 +1,82 @@
 import express from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
-import morgan from "morgan";
 import helmet from "helmet";
+import morgan from "morgan";
+import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 
 import authRoutes from "./routes/authRoutes.js";
 import pgRoutes from "./routes/pgRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
-import adminRoutes from "./routes/adminRoutes.js";   
 import favoriteRoutes from "./routes/favoriteRoutes.js";
-
+import adminRoutes from "./routes/adminRoutes.js";
 import { notFound, errorHandler } from "./middlewares/errorMiddleware.js";
 
 const app = express();
 
-//  TRUST PROXY (RENDER FIX)
-app.set("trust proxy", 1);
+// ─── Security headers ─────────────────────────────────────────────────────────
+app.use(helmet());
 
-//  CORS FIX (VERY IMPORTANT)
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+// FIX #19 (backend side) — origins from env, never hardcoded
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173")
+  .split(",")
+  .map((o) => o.trim());
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://findpg-woad.vercel.app",
-    ],
+    origin: (origin, cb) => {
+      // Allow server-to-server (no Origin header) and whitelisted origins
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`CORS: origin '${origin}' not allowed`));
+    },
     credentials: true,
   })
 );
 
-// Security
-app.use(helmet());
-
-// Rate limit
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-});
-app.use(limiter);
-
-// Body parser
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Cookies
+// ─── Body parsing ─────────────────────────────────────────────────────────────
+app.use(express.json({ limit: "10kb" }));       // reject abnormally large JSON bodies
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.use(cookieParser());
 
-// Logging
-if (process.env.NODE_ENV === "development") {
+// ─── Logging ──────────────────────────────────────────────────────────────────
+if (process.env.NODE_ENV !== "production") {
   app.use(morgan("dev"));
+} else {
+  app.use(morgan("combined")); // structured logs for prod aggregators
 }
 
+// ─── Global rate limit ────────────────────────────────────────────────────────
+// Auth routes have their own tighter limit (see authRoutes.js)
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;   // 15 minutes
+const RATE_LIMIT_MAX_REQUESTS = 200;             // per IP per window
 
+app.use(
+  rateLimit({
+    windowMs: RATE_LIMIT_WINDOW_MS,
+    max: RATE_LIMIT_MAX_REQUESTS,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      message: "Too many requests — please slow down.",
+    },
+  })
+);
 
-// Routes
+// ─── Health check ─────────────────────────────────────────────────────────────
+app.get("/health", (_req, res) =>
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() })
+);
+
+// ─── API Routes ───────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/pgs", pgRoutes);
-app.use("/api/bookings", bookingRoutes);   
-app.use("/api/admin", adminRoutes);       
-app.use("/api/favorites", favoriteRoutes); 
+app.use("/api/bookings", bookingRoutes);
+app.use("/api/favorites", favoriteRoutes);
+app.use("/api/admin", adminRoutes);
 
-// Not found + error
+// ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
