@@ -47,6 +47,16 @@ const App = () => {
             }
           />
           <Route
+            path="/owner/my-pgs"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={["owner", "admin"]}>
+                  <OwnerDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/owner/add-pg"
             element={
               <ProtectedRoute>
