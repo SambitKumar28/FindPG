@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { CalendarDays, ChevronLeft, MapPin, ShieldCheck } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  Heart,
+  Mail,
+  MapPin,
+  Phone,
+  ShieldCheck,
+} from "lucide-react";
 import API from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 
@@ -16,6 +24,9 @@ const PGDetails = () => {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [hasApprovedBooking, setHasApprovedBooking] = useState(false);
   const [error, setError] = useState("");
   const [bookingError, setBookingError] = useState("");
   const [bookingSuccess, setBookingSuccess] = useState("");
@@ -42,6 +53,65 @@ const PGDetails = () => {
 
     fetchPG();
   }, [id]);
+
+  useEffect(() => {
+    const loadUserContext = async () => {
+      if (user?.role !== "user") {
+        setIsFavorite(false);
+        setHasApprovedBooking(false);
+        return;
+      }
+
+      try {
+        const [favoritesRes, bookingsRes] = await Promise.all([
+          API.get("/favorites", { params: { limit: 50 } }),
+          API.get("/bookings/my", { params: { limit: 50 } }),
+        ]);
+
+        setIsFavorite(
+          (favoritesRes.data.data || []).some((favorite) => favorite._id === id)
+        );
+        setHasApprovedBooking(
+          (bookingsRes.data.data || []).some(
+            (booking) =>
+              booking.pg?._id === id && booking.status === "approved"
+          )
+        );
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    loadUserContext();
+  }, [id, user]);
+
+  const toggleFavorite = async () => {
+    if (!user) {
+      navigate("/login", { state: { from: location } });
+      return;
+    }
+
+    if (user.role !== "user") {
+      setBookingError("Only user accounts can save PGs.");
+      return;
+    }
+
+    try {
+      setFavoriteLoading(true);
+      setBookingError("");
+      const nextAction = isFavorite ? "remove" : "add";
+      const { data } = await API.patch(`/favorites/${id}/toggle`, {
+        action: nextAction,
+      });
+      setIsFavorite(nextAction === "add");
+      setBookingSuccess(data.message || "Saved PGs updated.");
+    } catch (err) {
+      console.error(err);
+      setBookingError(err.response?.data?.message || "Failed to update saved PGs.");
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
 
   const handleBooking = async (e) => {
     e.preventDefault();
@@ -72,6 +142,7 @@ const PGDetails = () => {
       });
       setBookingSuccess(data.message || "Booking request submitted successfully.");
       setMessage("");
+      setHasApprovedBooking(false);
     } catch (err) {
       console.error(err);
       setBookingError(
@@ -166,8 +237,15 @@ const PGDetails = () => {
 
             <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">{pg.title}</h1>
+              <div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-3xl font-bold text-gray-900">
+                      {pg.title}
+                    </h1>
+                    <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
+                      {pg.isAvailable ? "Available" : "Unavailable"}
+                    </span>
+                  </div>
                   <p className="mt-2 flex items-center gap-2 text-gray-500">
                     <MapPin size={18} />
                     {pg.locality}, {pg.city}
@@ -182,6 +260,24 @@ const PGDetails = () => {
                   </p>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={toggleFavorite}
+                disabled={favoriteLoading}
+                className={[
+                  "mb-5 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-60",
+                  isFavorite
+                    ? "border-red-200 bg-red-50 text-red-600"
+                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100",
+                ].join(" ")}
+              >
+                <Heart
+                  size={17}
+                  className={isFavorite ? "fill-red-500 text-red-500" : ""}
+                />
+                {isFavorite ? "Saved" : "Save PG"}
+              </button>
 
               <p className="leading-7 text-gray-700">{pg.description}</p>
 
@@ -214,6 +310,31 @@ const PGDetails = () => {
               <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
                 <h2 className="font-semibold text-gray-900">Full address</h2>
                 <p className="mt-1 text-sm text-gray-600">{pg.address}</p>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+                <h2 className="font-semibold text-gray-900">Owner contact</h2>
+                {hasApprovedBooking ? (
+                  <div className="mt-2 space-y-1 text-sm text-gray-600">
+                    <p>{pg.owner?.name}</p>
+                    {pg.owner?.email && (
+                      <p className="flex items-center gap-2">
+                        <Mail size={15} />
+                        {pg.owner.email}
+                      </p>
+                    )}
+                    {pg.owner?.phone && (
+                      <p className="flex items-center gap-2">
+                        <Phone size={15} />
+                        {pg.owner.phone}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-gray-500">
+                    Contact details unlock after the owner approves your booking.
+                  </p>
+                )}
               </div>
             </div>
           </section>

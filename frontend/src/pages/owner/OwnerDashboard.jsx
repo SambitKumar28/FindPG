@@ -77,6 +77,9 @@ const OwnerDashboard = () => {
   const pendingCount = pgs.filter((pg) => pg.approvalStatus === "pending").length;
   const approvedCount = pgs.filter((pg) => pg.approvalStatus === "approved").length;
   const pendingBookingCount = bookings.filter((b) => b.status === "pending").length;
+  const approvedBookingCount = bookings.filter((b) => b.status === "approved").length;
+  const rejectedBookingCount = bookings.filter((b) => b.status === "rejected").length;
+  const availableCount = pgs.filter((pg) => pg.isAvailable).length;
   const bookingCounts = useMemo(
     () => ({
       all: bookings.length,
@@ -114,7 +117,7 @@ const OwnerDashboard = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         <div className="bg-white p-6 rounded-2xl shadow">
           <h3 className="text-gray-500">Total PGs</h3>
           <p className="text-2xl font-bold">{pgs.length}</p>
@@ -131,8 +134,30 @@ const OwnerDashboard = () => {
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow">
+          <h3 className="text-gray-500">Available PGs</h3>
+          <p className="text-2xl font-bold">{availableCount}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-2xl shadow">
+          <h3 className="text-gray-500">Total Bookings</h3>
+          <p className="text-2xl font-bold">{bookings.length}</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow">
           <h3 className="text-gray-500">Booking Requests</h3>
           <p className="text-2xl font-bold">{pendingBookingCount}</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow">
+          <h3 className="text-gray-500">Approved Bookings</h3>
+          <p className="text-2xl font-bold">{approvedBookingCount}</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow">
+          <h3 className="text-gray-500">Rejected Bookings</h3>
+          <p className="text-2xl font-bold">{rejectedBookingCount}</p>
         </div>
       </div>
 

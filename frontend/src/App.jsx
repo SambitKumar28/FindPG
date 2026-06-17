@@ -13,6 +13,7 @@ import OwnerDashboard from "./pages/owner/OwnerDashboard";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleRoute from "./components/RoleRoute";
 import UserDashboard from "./pages/user/UserDashboard";
+import Favorites from "./pages/user/Favorites";
 import AddPG from "./pages/owner/AddPG";
 import EditPG from "./pages/owner/EditPG";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -36,7 +37,19 @@ const App = () => {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <UserDashboard />
+                <RoleRoute allowedRoles={["user"]}>
+                  <UserDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/favorites"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={["user"]}>
+                  <Favorites />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
