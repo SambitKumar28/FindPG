@@ -14,6 +14,7 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleRoute from "./components/RoleRoute";
 import UserDashboard from "./pages/user/UserDashboard";
 import AddPG from "./pages/owner/AddPG";
+import AdminDashboard from "./pages/admin/AdminDashboard";
 
 const App = () => {
   return (
@@ -62,6 +63,16 @@ const App = () => {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={["owner"]}>
                   <AddPG />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/dashboard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={["admin"]}>
+                  <AdminDashboard />
                 </RoleRoute>
               </ProtectedRoute>
             }
