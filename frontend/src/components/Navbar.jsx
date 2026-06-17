@@ -128,6 +128,15 @@ const Navbar = () => {
                       Profile
                     </Link>
 
+                    {user.role === "user" && (
+                      <Link
+                        to="/dashboard"
+                        className="block px-4 py-2 rounded-lg hover:bg-gray-100"
+                      >
+                        My Bookings
+                      </Link>
+                    )}
+
                     {user.role === "owner" && (
                       <Link
                         to="/owner/dashboard"
@@ -212,6 +221,12 @@ const Navbar = () => {
                   <Link to="/profile" onClick={closeMenu}>
                     Profile
                   </Link>
+
+                  {user.role === "user" && (
+                    <Link to="/dashboard" onClick={closeMenu}>
+                      My Bookings
+                    </Link>
+                  )}
 
                   {user.role === "owner" && (
                     <Link to="/owner/dashboard" onClick={closeMenu}>
