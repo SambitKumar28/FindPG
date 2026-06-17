@@ -68,7 +68,7 @@ const Register = () => {
         role: form.role,
       });
 
-      navigate(form.role === "owner" ? "/owner/dashboard" : "/", {
+      navigate(form.role === "owner" ? "/owner/dashboard" : "/dashboard", {
         replace: true,
       });
     } catch (err) {

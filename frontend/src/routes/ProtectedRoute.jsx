@@ -9,7 +9,7 @@ import { useAuth } from "../context/AuthContext";
  *   so they can be redirected back after logging in.
  * - Authenticated users whose role is not in the allowed list get a 403 page.
  */
-const ProtectedRoute = ({ roles }) => {
+const ProtectedRoute = ({ children, roles }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -23,7 +23,7 @@ const ProtectedRoute = ({ roles }) => {
     return <Navigate to="/unauthorized" replace />;
   }
 
-  return <Outlet />;
+  return children || <Outlet />;
 };
 
 export default ProtectedRoute;
