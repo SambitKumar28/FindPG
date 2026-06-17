@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import API from "../../api/axios";
 import { Link, useLocation } from "react-router-dom";
 
@@ -9,6 +9,7 @@ const OwnerDashboard = () => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [actionId, setActionId] = useState("");
+  const [bookingFilter, setBookingFilter] = useState("all");
 
   useEffect(() => {
     fetchData();
@@ -54,9 +55,42 @@ const OwnerDashboard = () => {
     }
   };
 
+  const deletePG = async (pgId) => {
+    const confirmed = window.confirm("Delete this PG listing?");
+    if (!confirmed) return;
+
+    try {
+      setActionId(pgId);
+      setError("");
+      setMessage("");
+      const { data } = await API.delete(`/pgs/${pgId}`);
+      setPgs((current) => current.filter((pg) => pg._id !== pgId));
+      setMessage(data.message || "PG deleted successfully.");
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || "Failed to delete PG.");
+    } finally {
+      setActionId("");
+    }
+  };
+
   const pendingCount = pgs.filter((pg) => pg.approvalStatus === "pending").length;
   const approvedCount = pgs.filter((pg) => pg.approvalStatus === "approved").length;
   const pendingBookingCount = bookings.filter((b) => b.status === "pending").length;
+  const bookingCounts = useMemo(
+    () => ({
+      all: bookings.length,
+      pending: bookings.filter((b) => b.status === "pending").length,
+      approved: bookings.filter((b) => b.status === "approved").length,
+      rejected: bookings.filter((b) => b.status === "rejected").length,
+      cancelled: bookings.filter((b) => b.status === "cancelled").length,
+    }),
+    [bookings]
+  );
+  const visibleBookings = useMemo(() => {
+    if (bookingFilter === "all") return bookings;
+    return bookings.filter((booking) => booking.status === bookingFilter);
+  }, [bookingFilter, bookings]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -134,10 +168,17 @@ const OwnerDashboard = () => {
                 </div>
 
                 <div className="flex gap-3">
-                  <button className="px-3 py-1 bg-yellow-400 rounded">
+                  <Link
+                    to={`/owner/edit-pg/${pg._id}`}
+                    className="px-3 py-1 bg-yellow-400 rounded"
+                  >
                     Edit
-                  </button>
-                  <button className="px-3 py-1 bg-red-500 text-white rounded">
+                  </Link>
+                  <button
+                    onClick={() => deletePG(pg._id)}
+                    disabled={actionId === pg._id}
+                    className="px-3 py-1 bg-red-500 text-white rounded disabled:opacity-60"
+                  >
                     Delete
                   </button>
                 </div>
@@ -148,13 +189,34 @@ const OwnerDashboard = () => {
       </div>
 
       <div className="bg-white p-6 rounded-2xl shadow">
-        <h2 className="text-xl font-semibold mb-4">Booking Requests</h2>
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <h2 className="text-xl font-semibold">Booking Requests</h2>
+          <div className="flex flex-wrap gap-2">
+            {["all", "pending", "approved", "rejected", "cancelled"].map(
+              (status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setBookingFilter(status)}
+                  className={[
+                    "rounded-full px-3 py-1 text-xs font-semibold capitalize",
+                    bookingFilter === status
+                      ? "bg-cyan-600 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+                  ].join(" ")}
+                >
+                  {status} ({bookingCounts[status]})
+                </button>
+              )
+            )}
+          </div>
+        </div>
 
-        {bookings.length === 0 ? (
+        {visibleBookings.length === 0 ? (
           <p>No bookings</p>
         ) : (
           <div className="space-y-4">
-            {bookings.map((b) => (
+            {visibleBookings.map((b) => (
               <div key={b._id} className="border p-4 rounded-xl">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>

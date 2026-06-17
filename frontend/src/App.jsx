@@ -14,6 +14,7 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleRoute from "./components/RoleRoute";
 import UserDashboard from "./pages/user/UserDashboard";
 import AddPG from "./pages/owner/AddPG";
+import EditPG from "./pages/owner/EditPG";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import PGDetails from "./pages/PGDetails";
 
@@ -65,6 +66,16 @@ const App = () => {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={["owner"]}>
                   <AddPG />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/owner/edit-pg/:id"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={["owner", "admin"]}>
+                  <EditPG />
                 </RoleRoute>
               </ProtectedRoute>
             }

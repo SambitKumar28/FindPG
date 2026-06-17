@@ -6,6 +6,7 @@ import {
   updatePG,
   deletePG,
   getMyPGs,
+  getMyPGById,
 } from "../controllers/pgController.js";
 
 import { protect, authorize } from "../middlewares/authMiddleware.js";
@@ -16,6 +17,7 @@ const router = express.Router();
 // Public
 router.get("/", getAllPGs);
 router.get("/my-pgs", protect, authorize("owner", "admin"), getMyPGs);
+router.get("/my-pgs/:id", protect, authorize("owner", "admin"), getMyPGById);
 router.get("/:id", getPGById);
 
 // Protected

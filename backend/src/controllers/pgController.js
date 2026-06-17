@@ -267,3 +267,18 @@ export const getMyPGs = asyncHandler(async (req, res) => {
     data: pgs,
   });
 });
+
+export const getMyPGById = asyncHandler(async (req, res) => {
+  const pg = await PG.findOne({
+    _id: req.params.id,
+    owner: req.user._id,
+    isDeleted: false,
+  }).lean();
+
+  if (!pg) {
+    res.status(404);
+    throw new Error("PG not found");
+  }
+
+  res.status(200).json({ success: true, pg });
+});
