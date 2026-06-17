@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import API from "../api/axios";
 
 const VisitePg = () => {
@@ -100,9 +101,12 @@ const VisitePg = () => {
                       ))}
                   </div>
 
-                  <button className="w-full rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700">
+                  <Link
+                    to={`/pgs/${pg._id}`}
+                    className="block w-full rounded-lg bg-cyan-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-cyan-700"
+                  >
                     View Details
-                  </button>
+                  </Link>
                 </div>
               </article>
             ))}

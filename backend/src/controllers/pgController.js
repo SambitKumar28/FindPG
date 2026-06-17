@@ -146,6 +146,7 @@ export const getPGById = asyncHandler(async (req, res) => {
   const pg = await PG.findOne({
     _id: req.params.id,
     isDeleted: false,
+    approvalStatus: "approved",
   })
     .populate("owner", "name email phone")
     .lean();

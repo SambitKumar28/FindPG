@@ -15,6 +15,7 @@ import RoleRoute from "./components/RoleRoute";
 import UserDashboard from "./pages/user/UserDashboard";
 import AddPG from "./pages/owner/AddPG";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import PGDetails from "./pages/PGDetails";
 
 const App = () => {
   return (
@@ -26,6 +27,7 @@ const App = () => {
           <Route path="/visitpg" element={<VisitePg />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/pgs/:id" element={<PGDetails />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           {/* Owner Routes */}
